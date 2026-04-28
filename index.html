@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#007aff">
+<title>줄의 실험 시뮬레이션</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 12px;
+  padding-bottom: 32px;
+  min-height: 100vh;
+}
+header {
+  text-align: center;
+  margin-bottom: 12px;
+}
+header h1 {
+  font-size: 1.4rem;
+  margin-bottom: 4px;
+}
+header p {
+  font-size: 0.85rem;
+  color: #6e6e73;
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  background: #e5e5ea;
+  padding: 4px;
+  border-radius: 10px;
+}
+.tab {
+  flex: 1;
+  padding: 10px 6px;
+  text-align: center;
+  border-radius: 7px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: #1d1d1f;
+  transition: all 0.2s;
+  min-height: 40px;
+  font-family: inherit;
+}
+.tab.active {
+  background: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  color: #007aff;
+}
+.panel {
+  display: none;
+  background: white;
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.panel.active { display: block; }
+
+.canvas-wrap {
+  width: 100%;
+  background: linear-gradient(180deg, #eaf3fb 0%, #d9e2ec 100%);
+  border-radius: 8px;
+  overflow: hidden;
+}
+canvas#apparatus {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+}
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  font-size: 0.8rem;
+}
+.status {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.status-idle { background: #e5e5ea; color: #6e6e73; }
+.status-running { background: #34c759; color: white; }
+.status-done { background: #007aff; color: white; }
+
+.readings {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+.reading {
+  background: #f5f5f7;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+.reading-label { color: #6e6e73; font-size: 0.72rem; }
+.reading-value { font-weight: 600; font-size: 1rem; color: #1d1d1f; margin-top: 2px; }
+
+.bars { margin-top: 16px; }
+.bars-title { font-size: 0.85rem; color: #6e6e73; margin-bottom: 8px; }
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.bar-label {
+  flex: 0 0 92px;
+  font-size: 0.78rem;
+}
+.bar-track {
+  flex: 1;
+  height: 18px;
+  background: #e5e5ea;
+  border-radius: 9px;
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%;
+  border-radius: 9px;
+  transition: width 0.1s linear;
+}
+.bar-fill.mech { background: linear-gradient(90deg, #5ac8fa, #007aff); }
+.bar-fill.therm { background: linear-gradient(90deg, #ffcc00, #ff3b30); }
+.bar-value {
+  flex: 0 0 78px;
+  font-size: 0.78rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #1d1d1f;
+}
+
+.controls { margin-top: 18px; }
+.control { margin-bottom: 12px; }
+.control-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 0.85rem;
+}
+.control-value { font-weight: 600; color: #007aff; }
+input[type="range"] {
+  width: 100%;
+  height: 36px;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+input[type="range"]:disabled { opacity: 0.5; }
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  background: #e5e5ea;
+  border-radius: 3px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 26px;
+  height: 26px;
+  background: white;
+  border: 2px solid #007aff;
+  border-radius: 50%;
+  margin-top: -10px;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  background: #e5e5ea;
+  border-radius: 3px;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 26px;
+  height: 26px;
+  background: white;
+  border: 2px solid #007aff;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+button.btn {
+  flex: 1;
+  min-height: 46px;
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+button.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+button.btn-primary { background: #007aff; color: white; }
+button.btn-primary:not(:disabled):active { background: #0051d5; }
+button.btn-secondary { background: #e5e5ea; color: #1d1d1f; }
+button.btn-secondary:not(:disabled):active { background: #d1d1d6; }
+button.btn-record { background: #34c759; color: white; }
+button.btn-record:not(:disabled):active { background: #248a3d; }
+
+.data-table-wrap {
+  overflow-x: auto;
+  margin-top: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  min-width: 480px;
+}
+th, td {
+  padding: 8px 6px;
+  text-align: center;
+  border-bottom: 1px solid #e5e5ea;
+}
+th {
+  background: #f5f5f7;
+  font-weight: 600;
+  color: #6e6e73;
+  font-size: 0.76rem;
+}
+.table-empty {
+  text-align: center;
+  padding: 24px;
+  color: #999;
+  font-size: 0.9rem;
+}
+.btn-del {
+  background: transparent;
+  color: #ff3b30;
+  border: 1px solid #ff3b30;
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+.btn-del:active { background: #ffece9; }
+
+.plot-wrap {
+  margin-top: 12px;
+  background: #fafafa;
+  border-radius: 8px;
+  padding: 8px;
+}
+canvas#plot { display: block; width: 100%; height: auto; }
+.plot-result {
+  margin-top: 12px;
+  padding: 14px;
+  background: #f5f5f7;
+  border-radius: 10px;
+  text-align: center;
+  font-size: 0.92rem;
+}
+.plot-result .big {
+  color: #007aff;
+  font-size: 1.4rem;
+  font-weight: 700;
+  display: block;
+  margin: 4px 0;
+}
+.plot-result .small {
+  font-size: 0.78rem;
+  color: #6e6e73;
+}
+
+.hint {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: #fff9e6;
+  border-left: 3px solid #ff9500;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  color: #5d4500;
+  line-height: 1.55;
+}
+.hint b { color: #1d1d1f; }
+
+h2.section-title {
+  font-size: 1.05rem;
+  margin-bottom: 6px;
+}
+.section-desc {
+  font-size: 0.82rem;
+  color: #6e6e73;
+  margin-bottom: 8px;
+}
+
+@media (min-width: 700px) {
+  header h1 { font-size: 1.7rem; }
+  header p { font-size: 0.95rem; }
+  .readings { grid-template-columns: repeat(4, 1fr); }
+  .reading-value { font-size: 1.05rem; }
+  .reading-label { font-size: 0.78rem; }
+  .bar-label { flex: 0 0 130px; font-size: 0.85rem; }
+  .bar-value { flex: 0 0 90px; font-size: 0.85rem; }
+  .tab { font-size: 0.95rem; padding: 12px 8px; min-height: 44px; }
+}
+
+@media (max-width: 380px) {
+  body { padding: 8px; }
+  .panel { padding: 11px; }
+  .reading { padding: 6px 8px; }
+  .reading-value { font-size: 0.92rem; }
+  .bar-label { flex: 0 0 78px; font-size: 0.72rem; }
+  .bar-value { flex: 0 0 65px; font-size: 0.72rem; }
+  header h1 { font-size: 1.2rem; }
+  .tab { font-size: 0.78rem; padding: 9px 4px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>줄의 실험 시뮬레이션</h1>
+  <p>역학적 일이 어떻게 열로 바뀌는지 직접 관찰해보세요</p>
+</header>
+
+<div class="tabs" role="tablist">
+  <button class="tab active" data-tab="sim">실험</button>
+  <button class="tab" data-tab="data">측정 데이터</button>
+  <button class="tab" data-tab="plot">W-Q 그래프</button>
+</div>
+
+<!-- ============== 실험 탭 ============== -->
+<section class="panel active" id="panel-sim">
+  <div class="canvas-wrap">
+    <canvas id="apparatus" width="700" height="500"></canvas>
+  </div>
+
+  <div class="status-row">
+    <div>상태: <span id="status" class="status status-idle">대기 중</span></div>
+    <div style="color:#6e6e73;">진행률: <span id="progress">0</span>%</div>
+  </div>
+
+  <div class="readings">
+    <div class="reading">
+      <div class="reading-label">물 온도</div>
+      <div class="reading-value"><span id="tempVal">20.00</span> °C</div>
+    </div>
+    <div class="reading">
+      <div class="reading-label">온도 변화 ΔT</div>
+      <div class="reading-value"><span id="dtempVal">0.00</span> °C</div>
+    </div>
+    <div class="reading">
+      <div class="reading-label">한 일 W</div>
+      <div class="reading-value"><span id="workVal">0.0</span> J</div>
+    </div>
+    <div class="reading">
+      <div class="reading-label">받은 열량 Q</div>
+      <div class="reading-value"><span id="heatVal">0.00</span> cal</div>
+    </div>
+  </div>
+
+  <div class="bars">
+    <div class="bars-title">에너지 변환 (총량은 일정 — 에너지 보존)</div>
+    <div class="bar-row">
+      <div class="bar-label">역학적 (남은)</div>
+      <div class="bar-track"><div class="bar-fill mech" id="mechBar" style="width:100%"></div></div>
+      <div class="bar-value"><span id="mechBarVal">0</span> J</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">열 (전환된)</div>
+      <div class="bar-track"><div class="bar-fill therm" id="thermBar" style="width:0%"></div></div>
+      <div class="bar-value"><span id="thermBarVal">0</span> J</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="control">
+      <div class="control-header">
+        <span>납추 질량 (개당)</span>
+        <span class="control-value"><span id="massDisp">5.0</span> kg</span>
+      </div>
+      <input type="range" id="mass" min="1" max="10" step="0.5" value="5">
+    </div>
+    <div class="control">
+      <div class="control-header">
+        <span>낙하 높이</span>
+        <span class="control-value"><span id="heightDisp">2.0</span> m</span>
+      </div>
+      <input type="range" id="height" min="0.5" max="5" step="0.1" value="2">
+    </div>
+    <div class="control">
+      <div class="control-header">
+        <span>물의 질량</span>
+        <span class="control-value"><span id="waterDisp">100</span> g</span>
+      </div>
+      <input type="range" id="water" min="50" max="500" step="10" value="100">
+    </div>
+    <div class="control">
+      <div class="control-header">
+        <span>낙하 횟수</span>
+        <span class="control-value"><span id="dropsDisp">10</span> 회</span>
+      </div>
+      <input type="range" id="drops" min="1" max="50" step="1" value="10">
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" id="startBtn">실험 시작</button>
+    <button class="btn btn-secondary" id="resetBtn">초기화</button>
+    <button class="btn btn-record" id="recordBtn" disabled>데이터 기록</button>
+  </div>
+
+  <div class="hint">
+    💡 변수를 다양하게 바꿔가며 여러 번 실험한 뒤, 매번 <b>"데이터 기록"</b>을 눌러 결과를 저장해보세요. 데이터가 모이면 <b>W-Q 그래프</b> 탭에서 일과 열의 비례관계와 <b>열의 일당량 J</b>를 직접 발견할 수 있어요.
+  </div>
+</section>
+
+<!-- ============== 데이터 탭 ============== -->
+<section class="panel" id="panel-data">
+  <h2 class="section-title">기록된 실험 데이터</h2>
+  <p class="section-desc">실험 탭에서 "데이터 기록" 버튼을 눌러 데이터를 추가할 수 있습니다.</p>
+
+  <div class="data-table-wrap">
+    <table id="dataTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>m (kg)</th>
+          <th>h (m)</th>
+          <th>N</th>
+          <th>물 (g)</th>
+          <th>W (J)</th>
+          <th>Q (cal)</th>
+          <th>W/Q</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="dataBody">
+        <tr><td colspan="9" class="table-empty">아직 기록된 데이터가 없습니다.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-secondary" id="clearDataBtn">전체 삭제</button>
+  </div>
+
+  <div class="hint">
+    💡 W = 2 × m × g × h × N (납추 2개) , Q = c × m<sub>물</sub> × ΔT (c = 1 cal/g·°C). 각 실험마다 <b>W/Q</b> 비율이 거의 일정한 것을 확인해보세요.
+  </div>
+</section>
+
+<!-- ============== 그래프 탭 ============== -->
+<section class="panel" id="panel-plot">
+  <h2 class="section-title">W (일) vs Q (열량) 그래프</h2>
+  <p class="section-desc">파란 점이 실험 결과, 빨간 점선이 회귀직선입니다. 기울기가 바로 <b>열의 일당량 J</b>예요.</p>
+
+  <div class="plot-wrap">
+    <canvas id="plot" width="600" height="400"></canvas>
+  </div>
+
+  <div class="plot-result" id="plotResult">
+    데이터를 2개 이상 기록하면 회귀직선이 그려집니다.
+  </div>
+
+  <div class="hint">
+    💡 줄(James Prescott Joule)이 1840년대 실험으로 발견한 값은 <b>J ≈ 4.184 J/cal</b> 입니다. 여러분이 시뮬레이션으로 구한 값과 비교해보세요!
+  </div>
+</section>
+
+<script>
+'use strict';
+
+// ============================================================
+// 상수
+// ============================================================
+const J_THEORETICAL = 4.184;
+const G = 9.8;
+const C_WATER = 1.0;
+const TIME_PER_DROP = 2400; // ms
+const INITIAL_TEMP = 20;
+
+// ============================================================
+// 상태
+// ============================================================
+const state = {
+  mass: 5,
+  height: 2.0,
+  waterMass: 100,
+  drops: 10,
+  currentTemp: INITIAL_TEMP,
+  totalWork: 0,
+  isRunning: false,
+  isComplete: false,
+  startTime: 0,
+  weightY: 0,
+  paddleAngle: 0,
+  data: [],
+};
+
+const $ = (id) => document.getElementById(id);
+const apparatus = $('apparatus');
+const aCtx = apparatus.getContext('2d');
+const plotCanvas = $('plot');
+const pCtx = plotCanvas.getContext('2d');
+
+// ============================================================
+// 탭 전환
+// ============================================================
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    $('panel-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'plot') { resizePlot(); }
+    if (btn.dataset.tab === 'sim') { resizeApparatus(); }
+  });
+});
+
+// ============================================================
+// 슬라이더
+// ============================================================
+function bindSlider(id, dispId, key, parser, formatter) {
+  const input = $(id);
+  const disp = $(dispId);
+  const update = () => {
+    state[key] = parser(input.value);
+    disp.textContent = formatter(state[key]);
+    if (!state.isRunning) {
+      state.isComplete = false;
+      state.totalWork = 0;
+      state.weightY = 0;
+      $('recordBtn').disabled = true;
+      $('startBtn').textContent = '실험 시작';
+      $('status').textContent = '대기 중';
+      $('status').className = 'status status-idle';
+      $('progress').textContent = '0';
+      resetReadings();
+      drawApparatus();
+    }
+  };
+  input.addEventListener('input', update);
+}
+
+bindSlider('mass', 'massDisp', 'mass', parseFloat, v => v.toFixed(1));
+bindSlider('height', 'heightDisp', 'height', parseFloat, v => v.toFixed(1));
+bindSlider('water', 'waterDisp', 'waterMass', v => parseInt(v, 10), v => v);
+bindSlider('drops', 'dropsDisp', 'drops', v => parseInt(v, 10), v => v);
+
+function setControlsDisabled(disabled) {
+  ['mass', 'height', 'water', 'drops'].forEach(id => { $(id).disabled = disabled; });
+}
+
+// ============================================================
+// 버튼
+// ============================================================
+$('startBtn').addEventListener('click', startExperiment);
+$('resetBtn').addEventListener('click', resetExperiment);
+$('recordBtn').addEventListener('click', recordData);
+$('clearDataBtn').addEventListener('click', () => {
+  if (state.data.length === 0) return;
+  if (confirm('모든 기록된 데이터를 삭제할까요?')) {
+    state.data = [];
+    renderTable();
+    drawPlot();
+  }
+});
+
+// ============================================================
+// 실험 로직
+// ============================================================
+function totalEnergy() {
+  return 2 * state.mass * G * state.height * state.drops;
+}
+
+function expectedDeltaT() {
+  return totalEnergy() / (J_THEORETICAL * C_WATER * state.waterMass);
+}
+
+function startExperiment() {
+  if (state.isRunning) return;
+  state.isRunning = true;
+  state.isComplete = false;
+  state.currentTemp = INITIAL_TEMP;
+  state.totalWork = 0;
+  state.startTime = performance.now();
+  setControlsDisabled(true);
+  $('startBtn').disabled = true;
+  $('startBtn').textContent = '진행 중...';
+  $('resetBtn').disabled = true;
+  $('recordBtn').disabled = true;
+  $('status').textContent = '실험 진행 중';
+  $('status').className = 'status status-running';
+  requestAnimationFrame(animate);
+}
+
+function resetExperiment() {
+  if (state.isRunning) return;
+  state.isComplete = false;
+  state.currentTemp = INITIAL_TEMP;
+  state.totalWork = 0;
+  state.weightY = 0;
+  state.paddleAngle = 0;
+  $('startBtn').disabled = false;
+  $('startBtn').textContent = '실험 시작';
+  $('recordBtn').disabled = true;
+  $('status').textContent = '대기 중';
+  $('status').className = 'status status-idle';
+  $('progress').textContent = '0';
+  resetReadings();
+  drawApparatus();
+}
+
+function resetReadings() {
+  $('tempVal').textContent = INITIAL_TEMP.toFixed(2);
+  $('dtempVal').textContent = '0.00';
+  $('workVal').textContent = '0.0';
+  $('heatVal').textContent = '0.00';
+  $('mechBar').style.width = '100%';
+  $('thermBar').style.width = '0%';
+  $('mechBarVal').textContent = totalEnergy().toFixed(0);
+  $('thermBarVal').textContent = '0';
+}
+
+function animate(now) {
+  if (!state.isRunning) return;
+  const elapsed = now - state.startTime;
+  const totalDuration = state.drops * TIME_PER_DROP;
+  const overallProgress = Math.min(1, elapsed / totalDuration);
+  const dropPhase = (elapsed % TIME_PER_DROP) / TIME_PER_DROP;
+
+  if (dropPhase < 0.8) {
+    const t = dropPhase / 0.8;
+    state.weightY = t * t; // 가속 낙하
+    state.paddleAngle += 0.10;
+  } else {
+    const t = (dropPhase - 0.8) / 0.2;
+    state.weightY = 1 - t; // 다시 감아 올림
+    state.paddleAngle += 0.0125;
+  }
+
+  const completedDrops = Math.floor(elapsed / TIME_PER_DROP);
+  const partialDrop = Math.min(1, dropPhase / 0.8);
+  const energyPerDrop = 2 * state.mass * G * state.height;
+  state.totalWork = Math.min(totalEnergy(), (completedDrops + partialDrop) * energyPerDrop);
+  state.currentTemp = INITIAL_TEMP + state.totalWork / (J_THEORETICAL * C_WATER * state.waterMass);
+
+  drawApparatus();
+  updateReadings(overallProgress);
+
+  if (overallProgress >= 1) {
+    state.isRunning = false;
+    state.isComplete = true;
+    state.totalWork = totalEnergy();
+    state.currentTemp = INITIAL_TEMP + expectedDeltaT();
+    state.weightY = 0;
+    drawApparatus();
+    updateReadings(1);
+    setControlsDisabled(false);
+    $('startBtn').disabled = false;
+    $('startBtn').textContent = '다시 실험';
+    $('resetBtn').disabled = false;
+    $('recordBtn').disabled = false;
+    $('status').textContent = '실험 완료';
+    $('status').className = 'status status-done';
+    return;
+  }
+  requestAnimationFrame(animate);
+}
+
+function updateReadings(progress) {
+  const dT = state.currentTemp - INITIAL_TEMP;
+  const Q_cal = state.totalWork / J_THEORETICAL;
+  $('tempVal').textContent = state.currentTemp.toFixed(2);
+  $('dtempVal').textContent = dT.toFixed(2);
+  $('workVal').textContent = state.totalWork.toFixed(1);
+  $('heatVal').textContent = Q_cal.toFixed(2);
+  $('progress').textContent = (progress * 100).toFixed(0);
+  const totalE = totalEnergy();
+  if (totalE === 0) return;
+  const mechFrac = 1 - state.totalWork / totalE;
+  const thermFrac = state.totalWork / totalE;
+  $('mechBar').style.width = (mechFrac * 100).toFixed(1) + '%';
+  $('thermBar').style.width = (thermFrac * 100).toFixed(1) + '%';
+  $('mechBarVal').textContent = (totalE - state.totalWork).toFixed(0);
+  $('thermBarVal').textContent = state.totalWork.toFixed(0);
+}
+
+function recordData() {
+  if (!state.isComplete) return;
+  const W = totalEnergy();
+  const Q = W / J_THEORETICAL;
+  state.data.push({
+    mass: state.mass,
+    height: state.height,
+    drops: state.drops,
+    waterMass: state.waterMass,
+    W: W,
+    Q: Q,
+  });
+  renderTable();
+  drawPlot();
+  $('recordBtn').disabled = true;
+  $('recordBtn').textContent = '✓ 기록 완료';
+  setTimeout(() => { $('recordBtn').textContent = '데이터 기록'; }, 1400);
+}
+
+function renderTable() {
+  const tbody = $('dataBody');
+  if (state.data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="table-empty">아직 기록된 데이터가 없습니다.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = state.data.map((d, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${d.mass.toFixed(1)}</td>
+      <td>${d.height.toFixed(1)}</td>
+      <td>${d.drops}</td>
+      <td>${d.waterMass}</td>
+      <td>${d.W.toFixed(1)}</td>
+      <td>${d.Q.toFixed(2)}</td>
+      <td>${(d.W / d.Q).toFixed(3)}</td>
+      <td><button class="btn-del" data-idx="${i}">삭제</button></td>
+    </tr>
+  `).join('');
+  tbody.querySelectorAll('.btn-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.idx, 10);
+      state.data.splice(i, 1);
+      renderTable();
+      drawPlot();
+    });
+  });
+}
+
+// ============================================================
+// 장치 그리기
+// ============================================================
+let appW = 700, appH = 500;
+function resizeApparatus() {
+  const containerW = apparatus.parentElement.clientWidth;
+  if (!containerW) return;
+  const targetW = Math.min(containerW, 800);
+  const targetH = targetW * (5 / 7);
+  apparatus.style.width = targetW + 'px';
+  apparatus.style.height = targetH + 'px';
+  const dpr = window.devicePixelRatio || 1;
+  apparatus.width = Math.round(targetW * dpr);
+  apparatus.height = Math.round(targetH * dpr);
+  aCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  appW = targetW;
+  appH = targetH;
+  drawApparatus();
+}
+
+function drawApparatus() {
+  const w = appW, h = appH;
+  aCtx.clearRect(0, 0, w, h);
+
+  // 배경 (방 안 느낌)
+  const grad = aCtx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, '#eaf3fb');
+  grad.addColorStop(1, '#d9e2ec');
+  aCtx.fillStyle = grad;
+  aCtx.fillRect(0, 0, w, h);
+
+  const frameTop = h * 0.10;
+  const frameBottom = h * 0.86;
+  const leftPost = w * 0.18;
+  const rightPost = w * 0.82;
+  const cx = w / 2;
+
+  // 바닥
+  aCtx.fillStyle = '#a47148';
+  aCtx.fillRect(0, frameBottom, w, h - frameBottom);
+  aCtx.fillStyle = '#8b5e35';
+  aCtx.fillRect(0, frameBottom, w, 4);
+
+  // 나무 기둥
+  aCtx.fillStyle = '#a47148';
+  aCtx.fillRect(leftPost - 8, frameTop, 16, frameBottom - frameTop);
+  aCtx.fillRect(rightPost - 8, frameTop, 16, frameBottom - frameTop);
+  // 윗 가로보
+  aCtx.fillRect(leftPost - 14, frameTop, rightPost - leftPost + 28, 14);
+  // 어두운 그림자
+  aCtx.fillStyle = 'rgba(0,0,0,0.15)';
+  aCtx.fillRect(leftPost - 8, frameTop + 12, 16, 3);
+  aCtx.fillRect(rightPost - 8, frameTop + 12, 16, 3);
+
+  // 도르래
+  const pulleyY = frameTop + 32;
+  const pulleyR = Math.min(w, h) * 0.055;
+  drawPulley(leftPost, pulleyY, pulleyR);
+  drawPulley(rightPost, pulleyY, pulleyR);
+
+  // 비커 위치
+  const beakerTop = h * 0.46;
+  const beakerBottom = h * 0.80;
+  const beakerW = w * 0.20;
+
+  // 회전축 (위쪽 손잡이까지)
+  aCtx.fillStyle = '#8b6f47';
+  aCtx.fillRect(cx - 4, frameTop + 14, 8, beakerTop - frameTop - 14);
+  // 회전 손잡이
+  aCtx.fillStyle = '#6b4423';
+  aCtx.fillRect(cx - 18, frameTop + 4, 36, 8);
+  aCtx.beginPath();
+  aCtx.arc(cx + 18, frameTop + 8, 4, 0, Math.PI * 2);
+  aCtx.fill();
+
+  // 비커 (유리)
+  aCtx.fillStyle = 'rgba(220, 235, 245, 0.6)';
+  aCtx.strokeStyle = '#5a8aa8';
+  aCtx.lineWidth = 2;
+  // 비커 입구 (살짝 넓게)
+  aCtx.beginPath();
+  aCtx.moveTo(cx - beakerW / 2 - 4, beakerTop);
+  aCtx.lineTo(cx - beakerW / 2, beakerTop + 6);
+  aCtx.lineTo(cx - beakerW / 2, beakerBottom);
+  aCtx.lineTo(cx + beakerW / 2, beakerBottom);
+  aCtx.lineTo(cx + beakerW / 2, beakerTop + 6);
+  aCtx.lineTo(cx + beakerW / 2 + 4, beakerTop);
+  aCtx.stroke();
+
+  // 물 (온도에 따라 색 변화)
+  const waterTop = beakerTop + 10;
+  const waterH = beakerBottom - waterTop - 3;
+  const tempFrac = Math.min(1, (state.currentTemp - INITIAL_TEMP) / 25);
+  const r = Math.round(120 + tempFrac * 130);
+  const g = Math.round(190 + tempFrac * 30);
+  const b = Math.round(230 - tempFrac * 130);
+  aCtx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.75)`;
+  aCtx.fillRect(cx - beakerW / 2 + 2, waterTop, beakerW - 4, waterH);
+
+  // 비커 외곽 다시 그리기 (앞면)
+  aCtx.strokeStyle = '#5a8aa8';
+  aCtx.lineWidth = 2;
+  aCtx.beginPath();
+  aCtx.moveTo(cx - beakerW / 2, beakerTop + 6);
+  aCtx.lineTo(cx - beakerW / 2, beakerBottom);
+  aCtx.lineTo(cx + beakerW / 2, beakerBottom);
+  aCtx.lineTo(cx + beakerW / 2, beakerTop + 6);
+  aCtx.stroke();
+
+  // 젓개 바퀴 (회전 중)
+  aCtx.save();
+  aCtx.translate(cx, (beakerTop + beakerBottom) / 2);
+  aCtx.rotate(state.paddleAngle);
+  // 8개의 노 (paddle blades)
+  for (let i = 0; i < 8; i++) {
+    aCtx.save();
+    aCtx.rotate((i * Math.PI) / 4);
+    aCtx.fillStyle = '#7a5530';
+    aCtx.fillRect(beakerW * 0.08, -2, beakerW * 0.22, 4);
+    aCtx.fillStyle = '#a47148';
+    aCtx.fillRect(beakerW * 0.22, -beakerW * 0.05, 4, beakerW * 0.10);
+    aCtx.restore();
+  }
+  // 중심 허브
+  aCtx.fillStyle = '#3a2914';
+  aCtx.beginPath();
+  aCtx.arc(0, 0, 5, 0, Math.PI * 2);
+  aCtx.fill();
+  aCtx.restore();
+
+  // 회전축 (비커 안)
+  aCtx.fillStyle = '#8b6f47';
+  aCtx.fillRect(cx - 3, beakerTop + 6, 6, beakerBottom - beakerTop - 8);
+
+  // 온도계
+  const thermX = cx + beakerW / 2 + 14;
+  const thermTop = beakerTop - 12;
+  const thermBot = beakerBottom + 4;
+  aCtx.fillStyle = 'white';
+  aCtx.strokeStyle = '#888';
+  aCtx.lineWidth = 1;
+  aCtx.fillRect(thermX, thermTop, 11, thermBot - thermTop);
+  aCtx.strokeRect(thermX, thermTop, 11, thermBot - thermTop);
+  // 수은
+  const mercuryFrac = Math.min(1, Math.max(0, (state.currentTemp - 0) / 60));
+  const mercuryH = (thermBot - thermTop - 8) * mercuryFrac;
+  aCtx.fillStyle = '#d32f2f';
+  aCtx.fillRect(thermX + 3.5, thermBot - 4 - mercuryH, 4, mercuryH);
+  aCtx.beginPath();
+  aCtx.arc(thermX + 5.5, thermBot + 4, 7, 0, Math.PI * 2);
+  aCtx.fill();
+  // 온도 라벨
+  aCtx.fillStyle = '#1d1d1f';
+  aCtx.font = 'bold 11px sans-serif';
+  aCtx.textAlign = 'left';
+  aCtx.fillText(state.currentTemp.toFixed(1) + '°C', thermX + 16, thermBot - 4);
+
+  // 추 위치 계산
+  const weightTopY = pulleyY + pulleyR + 4;
+  const weightTravelY = (frameBottom - 50) - weightTopY;
+  const weightSize = Math.min(w * 0.04, 22);
+
+  const wL_y = weightTopY + state.weightY * weightTravelY;
+  const wR_y = weightTopY + state.weightY * weightTravelY;
+
+  // 줄 (도르래 → 추)
+  aCtx.strokeStyle = '#3a2914';
+  aCtx.lineWidth = 1.4;
+  aCtx.beginPath();
+  aCtx.moveTo(leftPost - pulleyR, pulleyY);
+  aCtx.lineTo(leftPost - pulleyR, wL_y);
+  aCtx.stroke();
+  aCtx.beginPath();
+  aCtx.moveTo(rightPost + pulleyR, pulleyY);
+  aCtx.lineTo(rightPost + pulleyR, wR_y);
+  aCtx.stroke();
+
+  // 줄 (도르래 → 회전축)
+  aCtx.beginPath();
+  aCtx.moveTo(leftPost + pulleyR, pulleyY);
+  aCtx.lineTo(cx - 4, pulleyY + 4);
+  aCtx.stroke();
+  aCtx.beginPath();
+  aCtx.moveTo(rightPost - pulleyR, pulleyY);
+  aCtx.lineTo(cx + 4, pulleyY + 4);
+  aCtx.stroke();
+
+  // 추
+  drawWeight(leftPost - pulleyR, wL_y, weightSize);
+  drawWeight(rightPost + pulleyR, wR_y, weightSize);
+
+  // 라벨들
+  aCtx.fillStyle = '#1d1d1f';
+  aCtx.font = 'bold 11px sans-serif';
+  aCtx.textAlign = 'center';
+  aCtx.fillText('도르래', leftPost, pulleyY - pulleyR - 6);
+  aCtx.fillText('도르래', rightPost, pulleyY - pulleyR - 6);
+  aCtx.fillText('회전축', cx, frameTop + 30);
+  aCtx.font = '10px sans-serif';
+  aCtx.fillText('젓개 바퀴', cx, beakerBottom + 14);
+}
+
+function drawPulley(x, y, r) {
+  // 외측 휠
+  const gradP = aCtx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+  gradP.addColorStop(0, '#c8956d');
+  gradP.addColorStop(1, '#8b5e35');
+  aCtx.fillStyle = gradP;
+  aCtx.beginPath();
+  aCtx.arc(x, y, r, 0, Math.PI * 2);
+  aCtx.fill();
+  // 나무 결
+  aCtx.strokeStyle = '#6b4423';
+  aCtx.lineWidth = 1;
+  aCtx.beginPath();
+  aCtx.arc(x, y, r * 0.65, 0, Math.PI * 2);
+  aCtx.stroke();
+  // 중심
+  aCtx.fillStyle = '#3a2914';
+  aCtx.beginPath();
+  aCtx.arc(x, y, 3, 0, Math.PI * 2);
+  aCtx.fill();
+}
+
+function drawWeight(x, y, size) {
+  // 원기둥 모양 추
+  aCtx.fillStyle = '#555';
+  aCtx.fillRect(x - size, y, size * 2, size * 1.3);
+  // 윗면 하이라이트
+  aCtx.fillStyle = '#888';
+  aCtx.fillRect(x - size, y, size * 2, size * 0.18);
+  // 아래쪽 그림자
+  aCtx.fillStyle = '#333';
+  aCtx.fillRect(x - size, y + size * 1.1, size * 2, size * 0.2);
+  // 외곽선
+  aCtx.strokeStyle = '#222';
+  aCtx.lineWidth = 1;
+  aCtx.strokeRect(x - size, y, size * 2, size * 1.3);
+  // 라벨
+  aCtx.fillStyle = 'white';
+  aCtx.font = 'bold 10px sans-serif';
+  aCtx.textAlign = 'center';
+  aCtx.fillText(state.mass + 'kg', x, y + size * 0.85);
+}
+
+// ============================================================
+// W-Q 그래프
+// ============================================================
+let plotW = 600, plotH = 400;
+function resizePlot() {
+  const containerW = plotCanvas.parentElement.clientWidth - 16;
+  if (containerW <= 0) return;
+  const targetW = Math.min(containerW, 700);
+  const targetH = Math.min(targetW * 0.65, 420);
+  plotCanvas.style.width = targetW + 'px';
+  plotCanvas.style.height = targetH + 'px';
+  const dpr = window.devicePixelRatio || 1;
+  plotCanvas.width = Math.round(targetW * dpr);
+  plotCanvas.height = Math.round(targetH * dpr);
+  pCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  plotW = targetW;
+  plotH = targetH;
+  drawPlot();
+}
+
+function drawPlot() {
+  const w = plotW, h = plotH;
+  pCtx.clearRect(0, 0, w, h);
+  pCtx.fillStyle = 'white';
+  pCtx.fillRect(0, 0, w, h);
+
+  const margin = { top: 20, right: 20, bottom: 46, left: 56 };
+  const A = {
+    left: margin.left,
+    right: w - margin.right,
+    top: margin.top,
+    bottom: h - margin.bottom,
+  };
+
+  if (state.data.length === 0) {
+    pCtx.fillStyle = '#999';
+    pCtx.font = '14px sans-serif';
+    pCtx.textAlign = 'center';
+    pCtx.fillText('데이터를 기록하면 여기에 점이 찍힙니다', w / 2, h / 2);
+    $('plotResult').innerHTML = '데이터를 2개 이상 기록하면 회귀직선이 그려집니다.';
+    return;
+  }
+
+  let maxQ = Math.max(...state.data.map(d => d.Q));
+  let maxW = Math.max(...state.data.map(d => d.W));
+  maxQ = niceCeil(maxQ * 1.1);
+  maxW = niceCeil(maxW * 1.1);
+  if (maxQ < 10) maxQ = 10;
+  if (maxW < 50) maxW = 50;
+
+  const px = (q) => A.left + (q / maxQ) * (A.right - A.left);
+  const py = (W) => A.bottom - (W / maxW) * (A.bottom - A.top);
+
+  // 격자
+  pCtx.strokeStyle = '#eef0f2';
+  pCtx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const yy = A.top + (i / 5) * (A.bottom - A.top);
+    pCtx.beginPath();
+    pCtx.moveTo(A.left, yy);
+    pCtx.lineTo(A.right, yy);
+    pCtx.stroke();
+    const xx = A.left + (i / 5) * (A.right - A.left);
+    pCtx.beginPath();
+    pCtx.moveTo(xx, A.top);
+    pCtx.lineTo(xx, A.bottom);
+    pCtx.stroke();
+  }
+
+  // 축
+  pCtx.strokeStyle = '#1d1d1f';
+  pCtx.lineWidth = 2;
+  pCtx.beginPath();
+  pCtx.moveTo(A.left, A.top);
+  pCtx.lineTo(A.left, A.bottom);
+  pCtx.lineTo(A.right, A.bottom);
+  pCtx.stroke();
+
+  // 축 라벨
+  pCtx.fillStyle = '#1d1d1f';
+  pCtx.font = '12px sans-serif';
+  pCtx.textAlign = 'center';
+  pCtx.fillText('Q  (열량, cal)', (A.left + A.right) / 2, h - 12);
+  pCtx.save();
+  pCtx.translate(14, (A.top + A.bottom) / 2);
+  pCtx.rotate(-Math.PI / 2);
+  pCtx.fillText('W  (일, J)', 0, 0);
+  pCtx.restore();
+
+  // 눈금
+  pCtx.fillStyle = '#666';
+  pCtx.font = '10px sans-serif';
+  for (let i = 0; i <= 5; i++) {
+    const qVal = (i / 5) * maxQ;
+    const wVal = (i / 5) * maxW;
+    pCtx.textAlign = 'center';
+    pCtx.fillText(formatNum(qVal), A.left + (i / 5) * (A.right - A.left), A.bottom + 14);
+    pCtx.textAlign = 'right';
+    pCtx.fillText(formatNum(wVal), A.left - 6, A.bottom - (i / 5) * (A.bottom - A.top) + 4);
+  }
+
+  // 회귀직선 (원점 통과: J = ΣWQ / ΣQ²)
+  let sumWQ = 0, sumQQ = 0;
+  for (const d of state.data) {
+    sumWQ += d.W * d.Q;
+    sumQQ += d.Q * d.Q;
+  }
+  const slope = sumQQ > 0 ? sumWQ / sumQQ : 0;
+
+  if (state.data.length >= 2 && slope > 0) {
+    pCtx.strokeStyle = '#ff3b30';
+    pCtx.lineWidth = 2;
+    pCtx.setLineDash([6, 4]);
+    pCtx.beginPath();
+    pCtx.moveTo(px(0), py(0));
+    const endQ = maxQ;
+    const endW = slope * endQ;
+    if (endW <= maxW) {
+      pCtx.lineTo(px(endQ), py(endW));
+    } else {
+      pCtx.lineTo(px(maxW / slope), py(maxW));
+    }
+    pCtx.stroke();
+    pCtx.setLineDash([]);
+  }
+
+  // 데이터 점
+  for (const d of state.data) {
+    pCtx.fillStyle = '#007aff';
+    pCtx.beginPath();
+    pCtx.arc(px(d.Q), py(d.W), 5, 0, Math.PI * 2);
+    pCtx.fill();
+    pCtx.strokeStyle = 'white';
+    pCtx.lineWidth = 1.5;
+    pCtx.stroke();
+  }
+
+  // 결과 표시
+  if (state.data.length >= 2) {
+    const error = Math.abs(slope - J_THEORETICAL) / J_THEORETICAL * 100;
+    $('plotResult').innerHTML = `
+      <div>회귀직선의 기울기</div>
+      <span class="big">J ≈ ${slope.toFixed(3)} J/cal</span>
+      <div class="small">실제 값 4.184 J/cal 와의 오차: ${error.toFixed(2)}%</div>
+    `;
+  } else if (state.data.length === 1) {
+    const d = state.data[0];
+    $('plotResult').innerHTML = `
+      <div>현재 1개의 데이터: W/Q = <strong>${(d.W / d.Q).toFixed(3)} J/cal</strong></div>
+      <div class="small" style="margin-top:4px;">데이터를 1개 이상 더 기록하면 회귀직선이 그려집니다.</div>
+    `;
+  }
+}
+
+function niceCeil(x) {
+  if (x <= 0) return 10;
+  const exp = Math.pow(10, Math.floor(Math.log10(x)));
+  const f = x / exp;
+  let nf;
+  if (f <= 1) nf = 1;
+  else if (f <= 2) nf = 2;
+  else if (f <= 5) nf = 5;
+  else nf = 10;
+  return nf * exp;
+}
+
+function formatNum(v) {
+  if (v >= 1000) return v.toFixed(0);
+  if (v >= 100) return v.toFixed(0);
+  if (v >= 10) return v.toFixed(0);
+  return v.toFixed(1);
+}
+
+// ============================================================
+// 초기화 및 리사이즈
+// ============================================================
+function init() {
+  resizeApparatus();
+  resizePlot();
+  resetReadings();
+  drawApparatus();
+  renderTable();
+}
+
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    resizeApparatus();
+    resizePlot();
+  }, 100);
+});
+
+window.addEventListener('orientationchange', () => {
+  setTimeout(() => {
+    resizeApparatus();
+    resizePlot();
+  }, 250);
+});
+
+// 첫 페인트 후 초기화
+if (document.readyState === 'complete') {
+  init();
+} else {
+  window.addEventListener('load', init);
+}
+</script>
+
+</body>
+</html>
