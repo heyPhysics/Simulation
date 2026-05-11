@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🔋 직병렬 저항 실험실</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,'Noto Sans KR',sans-serif;background:#fff;color:#1e293b}
+  #root{min-height:100vh}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useRef,useEffect,useCallback}=React;
+const e=React.createElement;
+
+const RES_COLORS=["#7c3aed","#0891b2","#d97706","#059669","#dc2626","#6366f1","#db2777","#0d9488"];
+const RES_BG=["#f5f3ff","#ecfeff","#fffbeb","#ecfdf5","#fef2f2","#eef2ff","#fdf2f8","#f0fdfa"];
+const RES_BD=["#c4b5fd","#a5f3fc","#fcd34d","#6ee7b7","#fca5a5","#a5b4fc","#f9a8d4","#99f6e4"];
+
+function calcSeries(resistors,voltage){
+  const rTotal=resistors.reduce((s,r)=>s+r.value,0);
+  if(rTotal===0)return{rTotal:0,current:0,items:resistors.map(r=>({...r,v:0,i:0}))};
+  const current=voltage/rTotal;
+  return{rTotal,current,items:resistors.map(r=>({...r,v:current*r.value,i:current}))};
+}
+
+function calcParallel(resistors,voltage){
+  const invSum=resistors.reduce((s,r)=>s+(r.value>0?1/r.value:0),0);
+  const rTotal=invSum>0?1/invSum:0;
+  const totalI=rTotal>0?voltage/rTotal:0;
+  return{rTotal,current:totalI,items:resistors.map(r=>({...r,v:voltage,i:r.value>0?voltage/r.value:0}))};
+}
+
+function drawGrid(ctx,w,h){
+  ctx.strokeStyle="rgba(0,0,0,0.04)";ctx.lineWidth=1;
+  for(let x=0;x<w;x+=25){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+  for(let y=0;y<h;y+=25){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+}
+
+function drawZigzag(ctx,x1,y1,x2,y2,r,color,vertical){
+  const zigs=Math.max(3,Math.min(6,Math.round(r*0.5)));
+  const amp=7+Math.min(r,10)*0.8;
+  ctx.beginPath();
+  if(vertical){
+    const dy=y2-y1,step=dy/(zigs*2);
+    ctx.moveTo(x1,y1);
+    for(let i=0;i<zigs;i++){ctx.lineTo(x1+amp,y1+step*(i*2+1));ctx.lineTo(x1-amp,y1+step*(i*2+2));}
+    ctx.lineTo(x1,y2);
+  }else{
+    const dx=x2-x1,step=dx/(zigs*2);
+    ctx.moveTo(x1,y1);
+    for(let i=0;i<zigs;i++){ctx.lineTo(x1+step*(i*2+1),y1-amp);ctx.lineTo(x1+step*(i*2+2),y1+amp);}
+    ctx.lineTo(x2,y2);
+  }
+  ctx.strokeStyle=color;ctx.lineWidth=2.5;ctx.stroke();
+}
+
+function drawBattery(ctx,x,y1,y2,voltage){
+  const midY=(y1+y2)/2;
+  ctx.strokeStyle="#94a3b8";ctx.lineWidth=2.5;ctx.lineCap="round";
+  ctx.beginPath();ctx.moveTo(x,y1);ctx.lineTo(x,midY-14);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x,midY+14);ctx.lineTo(x,y2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x-13,midY-14);ctx.lineTo(x+13,midY-14);
+  ctx.strokeStyle="#dc2626";ctx.lineWidth=3.5;ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x-7,midY+14);ctx.lineTo(x+7,midY+14);
+  ctx.strokeStyle="#2563eb";ctx.lineWidth=3.5;ctx.stroke();
+  ctx.fillStyle="#dc2626";ctx.font="bold 12px sans-serif";ctx.textAlign="center";
+  ctx.fillText("+",x,midY-22);
+  ctx.fillStyle="#2563eb";ctx.fillText("−",x,midY+30);
+  ctx.fillStyle="#1e293b";ctx.font="bold 12px sans-serif";
+  ctx.fillText(voltage+"V",x+22,midY+3);
+}
+
+// Series animation
+function SeriesCanvas({resistors,voltage,cW,cH}){
+  const canvasRef=useRef(null);
+  const animRef=useRef(null);
+  const particlesRef=useRef([]);
+
+  useEffect(()=>{
+    const canvas=canvasRef.current;if(!canvas)return;
+    const ctx=canvas.getContext("2d");
+    const n=resistors.length;
+    if(n===0)return;
+    const data=calcSeries(resistors,voltage);
+    const speed=Math.min(4,data.current*0.7);
+    const numP=Math.max(4,Math.min(16,Math.round(data.current*3)));
+
+    const battX=cW*0.08,topY=cH*0.22,botY=cH*0.78;
+    const startX=cW*0.18,endX=cW*0.92;
+    const segW=(endX-startX)/n;
+
+    // Build path: battery top→right along top through resistors→down→left along bottom→up(battery)
+    const segs=[];
+    // top wire to first resistor
+    segs.push({x1:battX,y1:topY,x2:startX,y2:topY});
+    // each resistor segment on top
+    for(let i=0;i<n;i++){
+      segs.push({x1:startX+segW*i,y1:topY,x2:startX+segW*(i+1),y2:topY,isRes:true,ri:i});
+    }
+    // right side down
+    segs.push({x1:endX,y1:topY,x2:endX,y2:botY});
+    // bottom wire right to left
+    segs.push({x1:endX,y1:botY,x2:battX,y2:botY});
+    // left side up (battery)
+    segs.push({x1:battX,y1:botY,x2:battX,y2:topY,isBatt:true});
+
+    let totalLen=0;
+    const segLens=segs.map(s=>{const l=Math.sqrt((s.x2-s.x1)**2+(s.y2-s.y1)**2);totalLen+=l;return l;});
+
+    if(particlesRef.current.length!==numP){
+      particlesRef.current=[];
+      for(let i=0;i<numP;i++)particlesRef.current.push({t:(i/numP)*totalLen});
+    }
+
+    function getPos(dist){
+      let d=((dist%totalLen)+totalLen)%totalLen,cum=0;
+      for(let i=0;i<segs.length;i++){
+        if(d<=cum+segLens[i]){
+          const frac=(d-cum)/segLens[i];const s=segs[i];
+          return{x:s.x1+(s.x2-s.x1)*frac,y:s.y1+(s.y2-s.y1)*frac,isRes:!!s.isRes,ri:s.ri};
+        }
+        cum+=segLens[i];
+      }
+      return{x:segs[0].x1,y:segs[0].y1};
+    }
+
+    let frame=0;
+    const animate=()=>{
+      frame++;
+      ctx.fillStyle="#fdfdfd";ctx.fillRect(0,0,cW,cH);
+      drawGrid(ctx,cW,cH);
+
+      // Wires
+      ctx.strokeStyle="#94a3b8";ctx.lineWidth=2.5;ctx.lineCap="round";
+      ctx.beginPath();ctx.moveTo(battX,topY);ctx.lineTo(startX,topY);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(endX,topY);ctx.lineTo(endX,botY);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(endX,botY);ctx.lineTo(battX,botY);ctx.stroke();
+      const midY=(topY+botY)/2;
+      ctx.beginPath();ctx.moveTo(battX,botY);ctx.lineTo(battX,midY+18);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(battX,midY-18);ctx.lineTo(battX,topY);ctx.stroke();
+
+      // Resistors
+      for(let i=0;i<n;i++){
+        const rx1=startX+segW*i+8,rx2=startX+segW*(i+1)-8;
+        // wire segments between resistors
+        if(i>0){
+          ctx.strokeStyle="#94a3b8";ctx.lineWidth=2.5;
+          ctx.beginPath();ctx.moveTo(startX+segW*i-8,topY);ctx.lineTo(startX+segW*i+8,topY);ctx.stroke();
+        }
+        drawZigzag(ctx,rx1,topY,rx2,topY,resistors[i].value,RES_COLORS[i%8],false);
+        ctx.fillStyle=RES_COLORS[i%8];ctx.font="bold 11px sans-serif";ctx.textAlign="center";
+        ctx.fillText(`R${i+1}=${resistors[i].value}Ω`,(rx1+rx2)/2,topY-16-Math.min(resistors[i].value,10)*0.8);
+        // voltage across
+        ctx.fillStyle="#64748b";ctx.font="10px sans-serif";
+        ctx.fillText(`${data.items[i].v.toFixed(1)}V`,(rx1+rx2)/2,topY+22+Math.min(resistors[i].value,10)*0.8);
+      }
+
+      drawBattery(ctx,battX,topY,botY,voltage);
+
+      // Current direction arrow
+      ctx.fillStyle="#64748b";ctx.font="10px sans-serif";ctx.textAlign="center";
+      ctx.fillText("I →",(startX+endX)/2,topY-30);
+
+      // Particles
+      for(const p of particlesRef.current){
+        p.t+=speed;const pos=getPos(p.t);
+        let dy=0,r=4;
+        if(pos.isRes!==undefined&&pos.isRes){
+          dy=Math.sin(p.t*0.3+frame*0.15)*(3+Math.min(resistors[pos.ri]?.value||1,10)*0.5);
+          r=3;
+        }
+        ctx.beginPath();ctx.arc(pos.x,pos.y+dy,r,0,Math.PI*2);
+        ctx.fillStyle=pos.isRes?"#f59e0b":"#dc2626";ctx.fill();
+        ctx.strokeStyle=pos.isRes?"#b45309":"#991b1b";ctx.lineWidth=1;ctx.stroke();
+        ctx.fillStyle="#fff";ctx.font=`bold ${r<4?5:7}px monospace`;
+        ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("+",pos.x,pos.y+dy);
+      }
+
+      // Info
+      ctx.fillStyle="rgba(255,255,255,0.93)";ctx.strokeStyle="#e2e8f0";ctx.lineWidth=1;
+      ctx.beginPath();ctx.roundRect(cW-160,cH-60,152,52,8);ctx.fill();ctx.stroke();
+      ctx.fillStyle="#1e293b";ctx.font="bold 11px sans-serif";ctx.textAlign="left";
+      ctx.fillText(`R합 = ${data.rTotal.toFixed(1)}Ω`,cW-150,cH-42);
+      ctx.fillText(`I = ${data.current.toFixed(2)}A`,cW-150,cH-26);
+
+      animRef.current=requestAnimationFrame(animate);
+    };
+    animate();
+    return()=>{if(animRef.current)cancelAnimationFrame(animRef.current);};
+  },[resistors,voltage,cW,cH]);
+
+  return e("canvas",{ref:canvasRef,width:cW,height:cH,
+    style:{width:"100%",height:"auto",border:"1.5px solid #e2e8f0",borderRadius:10,boxShadow:"0 2px 8px rgba(0,0,0,0.05)"}});
+}
+
+// Parallel animation
+function ParallelCanvas({resistors,voltage,cW,cH}){
+  const canvasRef=useRef(null);
+  const animRef=useRef(null);
+  const particlesRef=useRef([]);
+
+  useEffect(()=>{
+    const canvas=canvasRef.current;if(!canvas)return;
+    const ctx=canvas.getContext("2d");
+    const n=resistors.length;
+    if(n===0)return;
+    const data=calcParallel(resistors,voltage);
+
+    const battX=cW*0.08;
+    const juncL=cW*0.22,juncR=cW*0.78;
+    const topY=cH*0.12,botY=cH*0.88;
+    const branchSpacing=Math.min(50,(botY-topY-40)/(n+1));
+    const branchStartY=((topY+botY)/2)-(n-1)*branchSpacing/2;
+
+    // Build paths per branch
+    const branchPaths=[];
+    for(let i=0;i<n;i++){
+      const by=branchStartY+i*branchSpacing;
+      const branchI=data.items[i].i;
+      const branchSpeed=Math.min(3.5,branchI*0.6);
+      const numP=Math.max(2,Math.min(6,Math.round(branchI*2)));
+
+      // Path: battX,topY → juncL,topY → juncL,by → juncR,by(resistor) → juncR,botY → battX,botY → battX,topY(batt)
+      const segs=[
+        {x1:battX,y1:topY,x2:juncL,y2:topY},
+        {x1:juncL,y1:topY,x2:juncL,y2:by},
+        {x1:juncL,y1:by,x2:juncR,y2:by,isRes:true,ri:i},
+        {x1:juncR,y1:by,x2:juncR,y2:botY},
+        {x1:juncR,y1:botY,x2:battX,y2:botY},
+        {x1:battX,y1:botY,x2:battX,y2:topY,isBatt:true},
+      ];
+      let totalLen=0;
+      const segLens=segs.map(s=>{const l=Math.sqrt((s.x2-s.x1)**2+(s.y2-s.y1)**2);totalLen+=l;return l;});
+      branchPaths.push({segs,segLens,totalLen,by,speed:branchSpeed,numP,ri:i});
+    }
+
+    // Initialize particles per branch
+    if(particlesRef.current.length!==n||particlesRef.current.some((bp,i)=>bp.length!==branchPaths[i].numP)){
+      particlesRef.current=branchPaths.map(bp=>{
+        const arr=[];
+        for(let j=0;j<bp.numP;j++)arr.push({t:(j/bp.numP)*bp.totalLen});
+        return arr;
+      });
+    }
+
+    function getPos(bp,dist){
+      let d=((dist%bp.totalLen)+bp.totalLen)%bp.totalLen,cum=0;
+      for(let i=0;i<bp.segs.length;i++){
+        if(d<=cum+bp.segLens[i]){
+          const frac=(d-cum)/bp.segLens[i];const s=bp.segs[i];
+          return{x:s.x1+(s.x2-s.x1)*frac,y:s.y1+(s.y2-s.y1)*frac,isRes:!!s.isRes,ri:s.ri};
+        }
+        cum+=bp.segLens[i];
+      }
+      return{x:bp.segs[0].x1,y:bp.segs[0].y1};
+    }
+
+    let frame=0;
+    const animate=()=>{
+      frame++;
+      ctx.fillStyle="#fdfdfd";ctx.fillRect(0,0,cW,cH);
+      drawGrid(ctx,cW,cH);
+
+      // Main wires
+      ctx.strokeStyle="#94a3b8";ctx.lineWidth=2.5;ctx.lineCap="round";
+      ctx.beginPath();ctx.moveTo(battX,topY);ctx.lineTo(juncL,topY);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(juncR,botY);ctx.lineTo(battX,botY);ctx.stroke();
+      const midY=(topY+botY)/2;
+      ctx.beginPath();ctx.moveTo(battX,botY);ctx.lineTo(battX,midY+18);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(battX,midY-18);ctx.lineTo(battX,topY);ctx.stroke();
+
+      // Junction nodes
+      ctx.beginPath();ctx.arc(juncL,topY,4,0,Math.PI*2);ctx.fillStyle="#475569";ctx.fill();
+      ctx.beginPath();ctx.arc(juncR,botY,4,0,Math.PI*2);ctx.fillStyle="#475569";ctx.fill();
+
+      // Branches
+      for(let i=0;i<n;i++){
+        const bp=branchPaths[i];
+        const by=bp.by;
+        const color=RES_COLORS[i%8];
+
+        // Branch wires
+        ctx.strokeStyle="#94a3b8";ctx.lineWidth=2;
+        ctx.beginPath();ctx.moveTo(juncL,topY);ctx.lineTo(juncL,by);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(juncR,by);ctx.lineTo(juncR,botY);ctx.stroke();
+
+        // Wire to/from resistor
+        const rMargin=20;
+        ctx.strokeStyle="#94a3b8";ctx.lineWidth=2;
+        ctx.beginPath();ctx.moveTo(juncL,by);ctx.lineTo(juncL+rMargin,by);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(juncR-rMargin,by);ctx.lineTo(juncR,by);ctx.stroke();
+
+        // Resistor
+        drawZigzag(ctx,juncL+rMargin,by,juncR-rMargin,by,resistors[i].value,color,false);
+
+        // Labels
+        ctx.fillStyle=color;ctx.font="bold 10px sans-serif";ctx.textAlign="center";
+        const labelY=by-14-Math.min(resistors[i].value,10)*0.8;
+        ctx.fillText(`R${i+1}=${resistors[i].value}Ω`,(juncL+juncR)/2,labelY);
+        ctx.fillStyle="#64748b";ctx.font="9px sans-serif";
+        ctx.fillText(`${data.items[i].i.toFixed(2)}A`,(juncL+juncR)/2,by+14+Math.min(resistors[i].value,10)*0.8);
+      }
+
+      drawBattery(ctx,battX,topY,botY,voltage);
+
+      // Particles per branch
+      for(let i=0;i<n;i++){
+        const bp=branchPaths[i];
+        const particles=particlesRef.current[i];
+        if(!particles)continue;
+        for(const p of particles){
+          p.t+=bp.speed;
+          const pos=getPos(bp,p.t);
+          let dy=0,r=3.5;
+          if(pos.isRes){
+            dy=Math.sin(p.t*0.3+frame*0.15)*(2+Math.min(resistors[pos.ri]?.value||1,10)*0.4);
+            r=2.5;
+          }
+          ctx.beginPath();ctx.arc(pos.x,pos.y+dy,r,0,Math.PI*2);
+          ctx.fillStyle=pos.isRes?"#f59e0b":"#dc2626";ctx.fill();
+          ctx.strokeStyle=pos.isRes?"#b45309":"#991b1b";ctx.lineWidth=0.8;ctx.stroke();
+        }
+      }
+
+      // Info
+      ctx.fillStyle="rgba(255,255,255,0.93)";ctx.strokeStyle="#e2e8f0";ctx.lineWidth=1;
+      ctx.beginPath();ctx.roundRect(cW-160,cH-60,152,52,8);ctx.fill();ctx.stroke();
+      ctx.fillStyle="#1e293b";ctx.font="bold 11px sans-serif";ctx.textAlign="left";
+      ctx.fillText(`R합 = ${data.rTotal.toFixed(2)}Ω`,cW-150,cH-42);
+      ctx.fillText(`I총 = ${data.current.toFixed(2)}A`,cW-150,cH-26);
+
+      // Voltage label
+      ctx.fillStyle="#64748b";ctx.font="10px sans-serif";ctx.textAlign="center";
+      ctx.fillText(`각 저항 전압 = ${voltage}V`,(juncL+juncR)/2,topY-8);
+
+      animRef.current=requestAnimationFrame(animate);
+    };
+    animate();
+    return()=>{if(animRef.current)cancelAnimationFrame(animRef.current);};
+  },[resistors,voltage,cW,cH]);
+
+  return e("canvas",{ref:canvasRef,width:cW,height:cH,
+    style:{width:"100%",height:"auto",border:"1.5px solid #e2e8f0",borderRadius:10,boxShadow:"0 2px 8px rgba(0,0,0,0.05)"}});
+}
+
+function App(){
+  const [mode,setMode]=useState(0); // 0=series,1=parallel
+  const [voltage,setVoltage]=useState(12);
+  const [resistors,setResistors]=useState([{id:1,value:4},{id:2,value:6}]);
+  const [nextId,setNextId]=useState(3);
+
+  const addResistor=()=>{
+    if(resistors.length>=6)return;
+    setResistors(prev=>[...prev,{id:nextId,value:3}]);
+    setNextId(n=>n+1);
+  };
+  const removeResistor=(id)=>{
+    if(resistors.length<=1)return;
+    setResistors(prev=>prev.filter(r=>r.id!==id));
+  };
+  const updateResistor=(id,val)=>{
+    setResistors(prev=>prev.map(r=>r.id===id?{...r,value:val}:r));
+  };
+
+  const data=mode===0?calcSeries(resistors,voltage):calcParallel(resistors,voltage);
+  const cW=500,cH=mode===1?Math.max(250,100+resistors.length*60):250;
+
+  const btnS=(active)=>({
+    padding:"9px 20px",border:`2px solid ${active?"#2563eb":"#e2e8f0"}`,
+    borderRadius:10,cursor:"pointer",fontSize:14,fontWeight:active?700:500,
+    background:active?"#2563eb":"#fff",color:active?"#fff":"#1e293b",
+    transition:"all 0.15s"});
+
+  return e("div",{style:{background:"#fff",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",padding:"20px 12px"}},
+    e("h1",{style:{fontSize:22,fontWeight:800,margin:"0 0 4px"}},"🔋 직병렬 저항 실험실"),
+    e("p",{style:{color:"#64748b",fontSize:13,margin:"0 0 16px"}},"Series & Parallel Resistor Lab"),
+
+    // Mode toggle
+    e("div",{style:{display:"flex",gap:6,marginBottom:14}},
+      e("button",{onClick:()=>setMode(0),style:btnS(mode===0)},"직렬 연결"),
+      e("button",{onClick:()=>setMode(1),style:btnS(mode===1)},"병렬 연결")),
+
+    // Voltage
+    e("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:10,background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"8px 16px"}},
+      e("span",{style:{fontSize:13,fontWeight:600}},"전압:"),
+      e("input",{type:"range",min:1,max:24,step:1,value:voltage,onChange:ev=>setVoltage(+ev.target.value),
+        style:{width:120,accentColor:"#dc2626"}}),
+      e("span",{style:{fontSize:15,fontWeight:700,color:"#dc2626",minWidth:40}},voltage+"V")),
+
+    // Resistor controls
+    e("div",{style:{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap",justifyContent:"center",alignItems:"center"}},
+      resistors.map((r,i)=>
+        e("div",{key:r.id,style:{display:"flex",alignItems:"center",gap:5,background:RES_BG[i%8],border:`1px solid ${RES_BD[i%8]}`,borderRadius:8,padding:"5px 10px"}},
+          e("span",{style:{fontSize:12,fontWeight:700,color:RES_COLORS[i%8]}},`R${i+1}`),
+          e("input",{type:"range",min:1,max:20,step:1,value:r.value,onChange:ev=>updateResistor(r.id,+ev.target.value),
+            style:{width:60,accentColor:RES_COLORS[i%8]}}),
+          e("span",{style:{fontSize:13,fontWeight:700,color:RES_COLORS[i%8],minWidth:32}},r.value+"Ω"),
+          resistors.length>1&&e("button",{onClick:()=>removeResistor(r.id),
+            style:{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:15,padding:0,lineHeight:1}},"×"))),
+      resistors.length<6&&e("button",{onClick:addResistor,
+        style:{padding:"5px 12px",border:"1.5px dashed #cbd5e1",borderRadius:8,background:"#f8fafc",cursor:"pointer",fontSize:13,color:"#64748b"}},
+        "+ 저항 추가")),
+
+    // Canvas
+    e("div",{style:{width:"100%",maxWidth:cW,margin:"0 auto"}},
+      mode===0
+        ?e(SeriesCanvas,{resistors,voltage,cW,cH})
+        :e(ParallelCanvas,{resistors,voltage,cW,cH})),
+
+    // Data table
+    e("div",{style:{marginTop:14,width:"100%",maxWidth:cW}},
+      e("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:13}},
+        e("thead",null,
+          e("tr",{style:{background:"#f8fafc"}},
+            e("th",{style:{padding:"6px 10px",border:"1px solid #e2e8f0",textAlign:"left"}},"저항"),
+            e("th",{style:{padding:"6px 10px",border:"1px solid #e2e8f0",textAlign:"center"}},"저항값 (Ω)"),
+            e("th",{style:{padding:"6px 10px",border:"1px solid #e2e8f0",textAlign:"center"}},"전압 (V)"),
+            e("th",{style:{padding:"6px 10px",border:"1px solid #e2e8f0",textAlign:"center"}},"전류 (A)"))),
+        e("tbody",null,
+          data.items.map((item,i)=>
+            e("tr",{key:item.id},
+              e("td",{style:{padding:"5px 10px",border:"1px solid #e2e8f0",fontWeight:700,color:RES_COLORS[i%8]}},`R${i+1}`),
+              e("td",{style:{padding:"5px 10px",border:"1px solid #e2e8f0",textAlign:"center"}},item.value+"Ω"),
+              e("td",{style:{padding:"5px 10px",border:"1px solid #e2e8f0",textAlign:"center",fontWeight:600}},item.v.toFixed(2)+"V"),
+              e("td",{style:{padding:"5px 10px",border:"1px solid #e2e8f0",textAlign:"center",fontWeight:600}},item.i.toFixed(2)+"A"))),
+          e("tr",{style:{background:"#f0f9ff"}},
+            e("td",{style:{padding:"5px 10px",border:"1px solid #e2e8f0",fontWeight:700}},"합계"),
+            e("td",{style:{padding:"5px 10px",border:"1px solid #e2e8f0",textAlign:"center",fontWeight:700}},data.rTotal.toFixed(2)+"Ω"),
+            e("td",{style:{padding:"5px 10px",border:"1px solid #e2e8f0",textAlign:"center",fontWeight:700}},voltage+"V"),
+            e("td",{style:{padding:"5px 10px",border:"1px solid #e2e8f0",textAlign:"center",fontWeight:700}},data.current.toFixed(2)+"A"))))),
+
+    // Formula
+    e("div",{style:{marginTop:12,padding:"10px 16px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:10,fontSize:13,textAlign:"center",maxWidth:cW,width:"100%"}},
+      mode===0
+        ?e(React.Fragment,null,
+          e("div",{style:{fontWeight:700,marginBottom:4}},"직렬 연결: R합 = R₁ + R₂ + ... = "+data.rTotal.toFixed(1)+"Ω"),
+          e("div",{style:{color:"#64748b"}},"전류는 모든 저항에서 동일: I = V/R합 = "+voltage+"/"+data.rTotal.toFixed(1)+" = "+data.current.toFixed(2)+"A"),
+          e("div",{style:{color:"#64748b",marginTop:2}},"각 저항 전압 합 = 전원 전압 ("+data.items.map(it=>it.v.toFixed(1)).join(" + ")+" = "+voltage+"V)"))
+        :e(React.Fragment,null,
+          e("div",{style:{fontWeight:700,marginBottom:4}},"병렬 연결: 1/R합 = "+resistors.map((_,i)=>`1/R${i+1}`).join(" + ")+" → R합 = "+data.rTotal.toFixed(2)+"Ω"),
+          e("div",{style:{color:"#64748b"}},"각 저항 전압은 전원 전압과 동일: "+voltage+"V"),
+          e("div",{style:{color:"#64748b",marginTop:2}},"전류 합 = 총 전류 ("+data.items.map(it=>it.i.toFixed(2)).join(" + ")+" = "+data.current.toFixed(2)+"A)"))),
+
+    // Legend
+    e("div",{style:{marginTop:10,display:"flex",gap:14,fontSize:11,color:"#64748b",flexWrap:"wrap",justifyContent:"center"}},
+      e("span",{style:{color:"#dc2626"}},"● 전하 이동"),
+      e("span",{style:{color:"#f59e0b"}},"● 저항 통과 중"),
+      e("span",null,"슬라이더로 전압·저항 조절"))
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(e(App));
+</script>
+</body>
+</html>
