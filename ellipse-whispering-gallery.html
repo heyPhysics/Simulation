@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🔬 타원의 속삭임 — 반사의 비밀</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+    font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    color: #e0e0e0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 16px;
+  }
+  h1 {
+    font-size: clamp(20px, 4vw, 28px);
+    font-weight: 800;
+    background: linear-gradient(90deg, #ff6b6b, #ffd93d, #4ecdc4);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin: 0 0 8px 0;
+    letter-spacing: -0.5px;
+  }
+  .subtitle {
+    font-size: 14px;
+    color: rgba(255,255,255,0.5);
+    line-height: 1.6;
+  }
+  .subtitle strong { color: #4ecdc4; }
+  .canvas-wrap {
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    max-width: 100%;
+    width: 800px;
+    margin-top: 16px;
+  }
+  canvas { width: 100%; height: auto; display: block; }
+  .controls {
+    margin-top: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    align-items: center;
+    max-width: 700px;
+  }
+  .mode-toggle {
+    display: flex;
+    background: rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .mode-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    background: transparent;
+    color: rgba(255,255,255,0.5);
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+  .mode-btn.active {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+  }
+  .angle-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .angle-group span:first-child {
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+  }
+  .angle-group input[type=range] {
+    width: 140px;
+    accent-color: #ffd93d;
+  }
+  .angle-val {
+    font-size: 13px;
+    font-weight: 700;
+    color: #ffd93d;
+    min-width: 40px;
+  }
+  .play-btn {
+    padding: 8px 20px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,180,50,0.3);
+    background: linear-gradient(135deg, rgba(255,180,50,0.15), rgba(255,100,100,0.1));
+    color: #ffd93d;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+  }
+  .play-btn:hover { background: linear-gradient(135deg, rgba(255,180,50,0.25), rgba(255,100,100,0.2)); }
+  .label-btn {
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.6);
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .cards {
+    margin-top: 24px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 700px;
+  }
+  .card {
+    flex: 1 1 200px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 12.5px;
+    line-height: 1.6;
+  }
+  .card-title { font-size: 18px; margin-bottom: 4px; }
+  .card-title strong { font-size: 13px; }
+  .card-desc { color: rgba(255,255,255,0.55); }
+  .footer {
+    margin-top: 20px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.25);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div style="text-align:center; margin-bottom:4px; max-width:700px;">
+  <h1>🔬 타원의 속삭임 — 반사의 비밀</h1>
+  <p class="subtitle">타원의 한 초점에서 출발한 소리(빛)는 벽에서 반사되어 <strong>반드시 다른 초점을 지나갑니다</strong>.</p>
+</div>
+
+<div class="canvas-wrap">
+  <canvas id="sim" width="800" height="600"></canvas>
+</div>
+
+<div class="controls">
+  <div class="mode-toggle">
+    <button class="mode-btn active" id="btnFocus" onclick="setMode('focus')">초점 모드</button>
+    <button class="mode-btn" id="btnFree" onclick="setMode('free')">자유 모드</button>
+  </div>
+  <div class="angle-group">
+    <span>발사 각도</span>
+    <input type="range" id="angleSlider" min="-170" max="170" value="30" oninput="setAngle(this.value)">
+    <span class="angle-val" id="angleVal">30°</span>
+  </div>
+  <button class="play-btn" onclick="triggerAnimation()">▶ 재생</button>
+  <button class="label-btn" id="labelBtn" onclick="toggleLabels()">라벨 숨기기</button>
+</div>
+
+<div class="cards">
+  <div class="card" style="border:1px solid rgba(255,107,107,0.13);">
+    <div class="card-title">🎯 <strong style="color:#ff6b6b">초점 모드</strong></div>
+    <div class="card-desc">초점 F₁에서 출발한 빛은 어떤 각도로 쏘든 반드시 F₂를 지나갑니다. 각도를 바꿔보세요!</div>
+  </div>
+  <div class="card" style="border:1px solid rgba(78,205,196,0.13);">
+    <div class="card-title">🖱️ <strong style="color:#4ecdc4">자유 모드</strong></div>
+    <div class="card-desc">초점이 아닌 곳에서 출발하면? 클릭으로 음원 위치를 바꿔서 차이를 확인하세요.</div>
+  </div>
+  <div class="card" style="border:1px solid rgba(255,217,61,0.13);">
+    <div class="card-title">🏛️ <strong style="color:#ffd93d">실제 활용</strong></div>
+    <div class="card-desc">미국 국회의사당 Statuary Hall, 런던 세인트폴 대성당 등에서 이 원리를 체험할 수 있어요.</div>
+  </div>
+</div>
+
+<p class="footer">타원의 반사 정리: 타원 위의 임의의 점에서의 법선은 두 초점까지의 거리가 이루는 각을 이등분한다.</p>
+
+<script>
+const canvas = document.getElementById('sim');
+const ctx = canvas.getContext('2d');
+const TAU = Math.PI * 2;
+const SEMI_A = 340, SEMI_B = 220;
+const FOCAL_C = Math.sqrt(SEMI_A * SEMI_A - SEMI_B * SEMI_B);
+const CX = 400, CY = 300;
+
+let mode = 'focus';
+let angle = 30;
+let sourcePos = { x: -FOCAL_C, y: 0 };
+let dragging = false;
+let showLabels = true;
+let animProgress = 1;
+let animId = null;
+let arrivedAtFocus = false;
+
+function reflect(nx, ny, dx, dy) {
+  const dot = dx * nx + dy * ny;
+  return { dx: dx - 2 * dot * nx, dy: dy - 2 * dot * ny };
+}
+
+function ellipseNormal(x, y) {
+  const nx = x / (SEMI_A * SEMI_A);
+  const ny = y / (SEMI_B * SEMI_B);
+  const len = Math.sqrt(nx * nx + ny * ny);
+  return { nx: nx / len, ny: ny / len };
+}
+
+function intersectRay(ox, oy, dx, dy) {
+  const A2 = SEMI_A * SEMI_A, B2 = SEMI_B * SEMI_B;
+  const qa = dx * dx / A2 + dy * dy / B2;
+  const qb = 2 * (ox * dx / A2 + oy * dy / B2);
+  const qc = ox * ox / A2 + oy * oy / B2 - 1;
+  const disc = qb * qb - 4 * qa * qc;
+  if (disc < 0) return null;
+  const sd = Math.sqrt(disc);
+  const t1 = (-qb + sd) / (2 * qa);
+  const t2 = (-qb - sd) / (2 * qa);
+  let t = -1;
+  if (t1 > 0.01 && t2 > 0.01) t = Math.min(t1, t2);
+  else if (t1 > 0.01) t = t1;
+  else if (t2 > 0.01) t = t2;
+  else return null;
+  return { x: ox + dx * t, y: oy + dy * t };
+}
+
+function computeRayPath(sx, sy, dx, dy, bounces) {
+  const pts = [{ x: sx, y: sy }];
+  let ox = sx, oy = sy, ddx = dx, ddy = dy;
+  for (let i = 0; i < bounces; i++) {
+    const hit = intersectRay(ox, oy, ddx, ddy);
+    if (!hit) break;
+    pts.push(hit);
+    const n = ellipseNormal(hit.x, hit.y);
+    const r = reflect(n.nx, n.ny, ddx, ddy);
+    ox = hit.x; oy = hit.y; ddx = r.dx; ddy = r.dy;
+  }
+  return pts;
+}
+
+function passesNearFocus2(path) {
+  const fx = FOCAL_C, fy = 0;
+  for (let i = 0; i < path.length - 1; i++) {
+    const p1 = path[i], p2 = path[i + 1];
+    const sdx = p2.x - p1.x, sdy = p2.y - p1.y;
+    const sl = sdx * sdx + sdy * sdy;
+    if (sl === 0) continue;
+    const t = Math.max(0, Math.min(1, ((fx - p1.x) * sdx + (fy - p1.y) * sdy) / sl));
+    const cx = p1.x + t * sdx, cy = p1.y + t * sdy;
+    if (Math.sqrt((cx - fx) ** 2 + (cy - fy) ** 2) < 18) return true;
+  }
+  return false;
+}
+
+function draw() {
+  const W = 800, H = 600;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  const bg = ctx.createRadialGradient(CX, CY, 50, CX, CY, 450);
+  bg.addColorStop(0, '#1a1a2e');
+  bg.addColorStop(1, '#0f0f1a');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+  // Ellipse glow
+  ctx.save(); ctx.translate(CX, CY);
+  ctx.beginPath(); ctx.ellipse(0, 0, SEMI_A + 8, SEMI_B + 8, 0, 0, TAU);
+  ctx.strokeStyle = 'rgba(100,200,255,0.15)'; ctx.lineWidth = 16; ctx.stroke();
+  ctx.restore();
+
+  // Ellipse wall
+  ctx.save(); ctx.translate(CX, CY);
+  ctx.beginPath(); ctx.ellipse(0, 0, SEMI_A, SEMI_B, 0, 0, TAU);
+  const wg = ctx.createLinearGradient(-SEMI_A, 0, SEMI_A, 0);
+  wg.addColorStop(0, '#2a4a6b'); wg.addColorStop(0.5, '#3d6b8e'); wg.addColorStop(1, '#2a4a6b');
+  ctx.strokeStyle = wg; ctx.lineWidth = 3; ctx.stroke();
+  ctx.restore();
+
+  // Axes
+  ctx.save(); ctx.translate(CX, CY);
+  ctx.setLineDash([4, 8]); ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-SEMI_A - 20, 0); ctx.lineTo(SEMI_A + 20, 0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, -SEMI_B - 20); ctx.lineTo(0, SEMI_B + 20); ctx.stroke();
+  ctx.setLineDash([]); ctx.restore();
+
+  // Ray
+  const sx = mode === 'focus' ? -FOCAL_C : sourcePos.x;
+  const sy = mode === 'focus' ? 0 : sourcePos.y;
+  const rad = angle * Math.PI / 180;
+  const rayPath = computeRayPath(sx, sy, Math.cos(rad), Math.sin(rad), 12);
+  const near = passesNearFocus2(rayPath);
+
+  ctx.save(); ctx.translate(CX, CY);
+  let totalLen = 0;
+  for (let i = 1; i < rayPath.length; i++) {
+    totalLen += Math.sqrt((rayPath[i].x - rayPath[i-1].x)**2 + (rayPath[i].y - rayPath[i-1].y)**2);
+  }
+  let drawLen = totalLen * animProgress;
+
+  for (let i = 0; i < rayPath.length - 1 && drawLen > 0; i++) {
+    const p1 = rayPath[i], p2 = rayPath[i+1];
+    const segLen = Math.sqrt((p2.x - p1.x)**2 + (p2.y - p1.y)**2);
+    const frac = Math.min(drawLen / segLen, 1);
+    const ex = p1.x + (p2.x - p1.x) * frac;
+    const ey = p1.y + (p2.y - p1.y) * frac;
+
+    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(ex, ey);
+    ctx.strokeStyle = 'rgba(255,180,50,0.25)'; ctx.lineWidth = 6; ctx.stroke();
+
+    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(ex, ey);
+    const alpha = Math.max(1 - i * 0.06, 0.3);
+    ctx.strokeStyle = `rgba(255,${160+i*8},${40+i*15},${alpha})`; ctx.lineWidth = 2.5; ctx.stroke();
+
+    if (frac >= 1 && i < rayPath.length - 2) {
+      ctx.beginPath(); ctx.arc(p2.x, p2.y, 4, 0, TAU);
+      ctx.fillStyle = 'rgba(255,220,100,0.8)'; ctx.fill();
+    }
+    drawLen -= segLen;
+  }
+
+  // Tip
+  if (animProgress > 0 && animProgress < 1) {
+    let rem = totalLen * animProgress;
+    for (let i = 0; i < rayPath.length - 1; i++) {
+      const p1 = rayPath[i], p2 = rayPath[i+1];
+      const sl = Math.sqrt((p2.x-p1.x)**2 + (p2.y-p1.y)**2);
+      if (rem <= sl) {
+        const f = rem / sl;
+        const tx = p1.x + (p2.x-p1.x)*f, ty = p1.y + (p2.y-p1.y)*f;
+        const pulse = 6 + Math.sin(animProgress * 20) * 3;
+        ctx.beginPath(); ctx.arc(tx, ty, pulse, 0, TAU);
+        ctx.fillStyle = 'rgba(255,200,50,0.7)'; ctx.fill();
+        ctx.beginPath(); ctx.arc(tx, ty, pulse+4, 0, TAU);
+        ctx.strokeStyle = 'rgba(255,200,50,0.3)'; ctx.lineWidth = 2; ctx.stroke();
+        break;
+      }
+      rem -= sl;
+    }
+  }
+  ctx.restore();
+
+  // Foci
+  const foci = [
+    { x: -FOCAL_C, y: 0, label: '초점 F₁', color: '#ff6b6b', isSrc: mode === 'focus' },
+    { x: FOCAL_C, y: 0, label: '초점 F₂', color: '#4ecdc4', isSrc: false }
+  ];
+  foci.forEach(f => {
+    ctx.save(); ctx.translate(CX + f.x, CY + f.y);
+    const gr = f.isSrc ? 20 : (arrivedAtFocus && near && f.label.includes('F₂') ? 20 + Math.sin(Date.now()/150)*5 : 16);
+    ctx.beginPath(); ctx.arc(0, 0, gr, 0, TAU);
+    ctx.fillStyle = f.color + '30'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, 8, 0, TAU);
+    const dg = ctx.createRadialGradient(0,0,0,0,0,8);
+    dg.addColorStop(0,'#fff'); dg.addColorStop(0.5, f.color); dg.addColorStop(1, f.color+'88');
+    ctx.fillStyle = dg; ctx.fill();
+    if (showLabels) {
+      ctx.font = "bold 14px 'Pretendard', sans-serif";
+      ctx.fillStyle = f.color; ctx.textAlign = 'center';
+      ctx.fillText(f.label, 0, -24);
+    }
+    ctx.restore();
+  });
+
+  // Free mode source
+  if (mode === 'free') {
+    ctx.save(); ctx.translate(CX + sourcePos.x, CY + sourcePos.y);
+    ctx.beginPath(); ctx.arc(0,0,10,0,TAU); ctx.fillStyle='rgba(255,100,100,0.6)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0,0,5,0,TAU); ctx.fillStyle='#ff6b6b'; ctx.fill();
+    if (showLabels) {
+      ctx.font = "bold 13px 'Pretendard', sans-serif";
+      ctx.fillStyle = '#ff9999'; ctx.textAlign = 'center';
+      ctx.fillText('음원', 0, -18);
+    }
+    ctx.restore();
+  }
+
+  // Ripples at F2
+  if (arrivedAtFocus && near) {
+    ctx.save(); ctx.translate(CX + FOCAL_C, CY);
+    const t = (Date.now() % 2000) / 2000;
+    for (let r = 0; r < 3; r++) {
+      const phase = (t + r * 0.33) % 1;
+      ctx.beginPath(); ctx.arc(0, 0, phase * 40, 0, TAU);
+      ctx.strokeStyle = `rgba(78,205,196,${(1-phase)*0.5})`; ctx.lineWidth = 2; ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Icons
+  const spkX = CX + (mode === 'focus' ? -FOCAL_C : sourcePos.x);
+  const spkY = CY + (mode === 'focus' ? 0 : sourcePos.y);
+  ctx.font = '20px sans-serif'; ctx.fillText('🔊', spkX - 30, spkY + 6);
+  if (arrivedAtFocus && near) {
+    ctx.fillText('👂', CX + FOCAL_C + 16, CY + 6);
+  }
+
+  // Info
+  if (showLabels) {
+    ctx.font = "13px 'Pretendard', sans-serif";
+    ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.textAlign = 'center';
+    ctx.fillText(`a = ${SEMI_A}  b = ${SEMI_B}  c = ${Math.round(FOCAL_C)}`, CX, CY + SEMI_B + 40);
+    if (mode === 'focus' && near && arrivedAtFocus) {
+      ctx.font = "bold 15px 'Pretendard', sans-serif";
+      ctx.fillStyle = '#4ecdc4';
+      ctx.fillText('✨ 소리가 다른 초점에 도달했습니다!', CX, CY - SEMI_B - 30);
+    }
+  }
+
+  if (arrivedAtFocus && near) requestAnimationFrame(draw);
+}
+
+function triggerAnimation() {
+  animProgress = 0;
+  arrivedAtFocus = false;
+  if (animId) cancelAnimationFrame(animId);
+  const start = performance.now();
+  const duration = 2200;
+  function step(now) {
+    const p = Math.min((now - start) / duration, 1);
+    animProgress = p;
+    if (p >= 1) { arrivedAtFocus = true; }
+    draw();
+    if (p < 1) animId = requestAnimationFrame(step);
+  }
+  animId = requestAnimationFrame(step);
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('btnFocus').className = 'mode-btn' + (m === 'focus' ? ' active' : '');
+  document.getElementById('btnFree').className = 'mode-btn' + (m === 'free' ? ' active' : '');
+  canvas.style.cursor = m === 'free' ? 'crosshair' : 'default';
+  if (m === 'focus') sourcePos = { x: -FOCAL_C, y: 0 };
+  triggerAnimation();
+}
+
+function setAngle(v) {
+  angle = Number(v);
+  document.getElementById('angleVal').textContent = v + '°';
+  triggerAnimation();
+}
+
+function toggleLabels() {
+  showLabels = !showLabels;
+  document.getElementById('labelBtn').textContent = showLabels ? '라벨 숨기기' : '라벨 보기';
+  draw();
+}
+
+canvas.addEventListener('mousedown', function(e) {
+  if (mode !== 'free') return;
+  const rect = canvas.getBoundingClientRect();
+  const sx = 800 / rect.width, sy = 600 / rect.height;
+  const mx = (e.clientX - rect.left) * sx - CX;
+  const my = (e.clientY - rect.top) * sy - CY;
+  if (mx*mx/(SEMI_A*SEMI_A) + my*my/(SEMI_B*SEMI_B) < 0.95) {
+    sourcePos = { x: mx, y: my };
+    dragging = true;
+    triggerAnimation();
+  }
+});
+canvas.addEventListener('mousemove', function(e) {
+  if (!dragging || mode !== 'free') return;
+  const rect = canvas.getBoundingClientRect();
+  const sx = 800 / rect.width, sy = 600 / rect.height;
+  const mx = (e.clientX - rect.left) * sx - CX;
+  const my = (e.clientY - rect.top) * sy - CY;
+  if (mx*mx/(SEMI_A*SEMI_A) + my*my/(SEMI_B*SEMI_B) < 0.95) {
+    sourcePos = { x: mx, y: my };
+    triggerAnimation();
+  }
+});
+canvas.addEventListener('mouseup', () => dragging = false);
+canvas.addEventListener('mouseleave', () => dragging = false);
+
+// Touch support
+canvas.addEventListener('touchstart', function(e) {
+  if (mode !== 'free') return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  const sx = 800 / rect.width, sy = 600 / rect.height;
+  const mx = (touch.clientX - rect.left) * sx - CX;
+  const my = (touch.clientY - rect.top) * sy - CY;
+  if (mx*mx/(SEMI_A*SEMI_A) + my*my/(SEMI_B*SEMI_B) < 0.95) {
+    sourcePos = { x: mx, y: my };
+    dragging = true;
+    triggerAnimation();
+  }
+}, { passive: false });
+canvas.addEventListener('touchmove', function(e) {
+  if (!dragging || mode !== 'free') return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  const sx = 800 / rect.width, sy = 600 / rect.height;
+  const mx = (touch.clientX - rect.left) * sx - CX;
+  const my = (touch.clientY - rect.top) * sy - CY;
+  if (mx*mx/(SEMI_A*SEMI_A) + my*my/(SEMI_B*SEMI_B) < 0.95) {
+    sourcePos = { x: mx, y: my };
+    triggerAnimation();
+  }
+}, { passive: false });
+canvas.addEventListener('touchend', () => dragging = false);
+
+// Initial draw
+triggerAnimation();
+</script>
+</body>
+</html>
