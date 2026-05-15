@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>표준 용액 만들기 시뮬레이션</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-deep: #0c1220;
+    --bg-card: rgba(255,255,255,0.04);
+    --border: rgba(255,255,255,0.07);
+    --accent: #4fc3f7;
+    --accent2: #2196f3;
+    --text: #e0e8f5;
+    --text-dim: #7a9cc6;
+    --text-muted: #4a5f78;
+    --success: #2ecc71;
+    --error: #e74c3c;
+    --warn: #ffd54f;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: linear-gradient(150deg, var(--bg-deep) 0%, #162038 50%, #0f1a2e 100%);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Ambient floating particles */
+  body::before {
+    content: '';
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background:
+      radial-gradient(1.5px 1.5px at 20% 30%, rgba(79,195,247,0.15), transparent),
+      radial-gradient(1px 1px at 70% 20%, rgba(33,150,243,0.1), transparent),
+      radial-gradient(1.5px 1.5px at 50% 80%, rgba(79,195,247,0.12), transparent),
+      radial-gradient(1px 1px at 85% 60%, rgba(33,150,243,0.08), transparent);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative; z-index: 1;
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 20px 16px 32px;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    padding: 24px 16px;
+    margin-bottom: 20px;
+    background: var(--bg-card);
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: ''; position: absolute; top: -40%; left: -20%; width: 140%; height: 80%;
+    background: radial-gradient(ellipse, rgba(79,195,247,0.06), transparent 70%);
+    pointer-events: none;
+  }
+  .header-label {
+    font-size: 10px; letter-spacing: 5px; color: var(--text-muted);
+    text-transform: uppercase; margin-bottom: 8px;
+  }
+  .header h1 {
+    font-size: 26px; font-weight: 700;
+    background: linear-gradient(90deg, #64b5f6, #81d4fa, #4fc3f7);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .header-sub { font-size: 13px; color: var(--text-dim); margin-top: 6px; }
+
+  /* Progress bar */
+  .progress {
+    display: flex; gap: 5px;
+    margin-bottom: 20px;
+  }
+  .progress-step {
+    flex: 1; padding: 10px 2px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.015);
+    color: var(--text-muted);
+    cursor: pointer;
+    text-align: center;
+    font-size: 9px; font-weight: 400;
+    transition: all 0.3s ease;
+  }
+  .progress-step:hover { background: rgba(79,195,247,0.06); }
+  .progress-step.active {
+    border-color: var(--accent);
+    background: rgba(79,195,247,0.12);
+    color: #81d4fa; font-weight: 700;
+  }
+  .progress-step.done {
+    background: rgba(79,195,247,0.05);
+    color: #5a9abf;
+  }
+  .progress-num { font-size: 15px; margin-bottom: 3px; display: block; }
+
+  /* Main card */
+  .main-card {
+    background: var(--bg-card);
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    margin-bottom: 14px;
+    animation: cardIn 0.4s ease;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .step-bar {
+    padding: 14px 18px;
+    background: rgba(79,195,247,0.06);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .step-num {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: white; flex-shrink: 0;
+  }
+  .step-title { font-size: 16px; font-weight: 600; }
+
+  .anim-area {
+    padding: 16px;
+    display: flex; justify-content: center;
+    min-height: 240px; align-items: center;
+  }
+  .anim-area svg { width: 100%; max-height: 260px; }
+
+  .instruction {
+    padding: 10px 20px 18px;
+    font-size: 13.5px; line-height: 1.8;
+    color: #b0c4de;
+    white-space: pre-line;
+  }
+
+  /* Hint */
+  .hint-btn {
+    width: 100%; padding: 12px 18px;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    color: var(--text-dim);
+    cursor: pointer; font-size: 13.5px;
+    text-align: left;
+    margin-bottom: 14px;
+    transition: all 0.3s;
+    font-family: inherit;
+  }
+  .hint-btn.open {
+    background: rgba(255,193,7,0.08);
+    border-color: rgba(255,193,7,0.25);
+    color: var(--warn);
+  }
+  .hint-content {
+    margin-top: 10px; font-size: 12.5px;
+    line-height: 1.9; color: #e0d080;
+    white-space: pre-line;
+  }
+
+  /* Quiz */
+  .quiz-card {
+    background: var(--bg-card);
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    padding: 18px;
+    margin-bottom: 14px;
+  }
+  .quiz-label { font-size: 12px; color: var(--accent); font-weight: 600; margin-bottom: 10px; }
+  .quiz-q { font-size: 13.5px; margin-bottom: 14px; line-height: 1.7; }
+  .quiz-opts { display: flex; flex-direction: column; gap: 7px; }
+  .quiz-opt {
+    padding: 11px 15px;
+    background: rgba(255,255,255,0.025);
+    border: 1.5px solid rgba(255,255,255,0.08);
+    border-radius: 11px;
+    color: #b0c4de;
+    cursor: pointer; font-size: 13px;
+    text-align: left;
+    transition: all 0.25s;
+    font-family: inherit;
+  }
+  .quiz-opt:hover:not(.locked) { background: rgba(79,195,247,0.08); }
+  .quiz-opt.selected {
+    background: rgba(79,195,247,0.12);
+    border-color: rgba(79,195,247,0.4);
+    color: #81d4fa;
+  }
+  .quiz-opt.correct {
+    background: rgba(46,204,113,0.13);
+    border-color: rgba(46,204,113,0.5);
+    color: #6ee7a0;
+  }
+  .quiz-opt.wrong {
+    background: rgba(231,76,60,0.1);
+    border-color: rgba(231,76,60,0.35);
+    color: #e88;
+  }
+
+  .quiz-submit {
+    margin-top: 12px; width: 100%; padding: 11px;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    border: none; border-radius: 11px;
+    color: white; font-size: 13.5px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+    transition: opacity 0.3s;
+  }
+  .quiz-submit:disabled {
+    background: rgba(255,255,255,0.05);
+    opacity: 0.4; cursor: default;
+  }
+
+  .quiz-result {
+    margin-top: 12px; padding: 12px 16px;
+    border-radius: 11px;
+    font-size: 12.5px; line-height: 1.8;
+  }
+  .quiz-result.pass { background: rgba(46,204,113,0.08); color: #6ee7a0; }
+  .quiz-result.fail { background: rgba(231,76,60,0.07); color: #f0a0a0; }
+
+  /* Nav */
+  .nav { display: flex; gap: 12px; margin-bottom: 14px; }
+  .nav-btn {
+    flex: 1; padding: 13px;
+    border-radius: 13px;
+    font-size: 14px; font-family: inherit;
+    cursor: pointer; border: none;
+    transition: all 0.3s;
+  }
+  .nav-prev {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    color: #b0c4de;
+  }
+  .nav-prev:disabled { color: var(--text-muted); cursor: default; }
+  .nav-next {
+    background: linear-gradient(90deg, #1565c0, var(--accent2));
+    color: white; font-weight: 600;
+  }
+  .nav-next.finished {
+    background: rgba(46,204,113,0.25);
+  }
+  .nav-next:disabled { cursor: default; }
+
+  /* Score */
+  .score {
+    text-align: center; padding: 12px;
+    background: var(--bg-card); border-radius: 12px;
+    font-size: 12.5px; color: var(--text-dim);
+  }
+  .score b { color: var(--accent); font-size: 16px; }
+
+  /* Dilution section */
+  .dilution-card {
+    background: var(--bg-card);
+    border-radius: 18px;
+    border: 1px solid rgba(255,193,7,0.15);
+    overflow: hidden;
+    margin-bottom: 14px;
+    margin-top: 8px;
+  }
+  .dilution-bar {
+    padding: 14px 18px;
+    background: rgba(255,193,7,0.06);
+    border-bottom: 1px solid rgba(255,193,7,0.12);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .dilution-icon {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: linear-gradient(135deg, #ff9800, #ffc107);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: white; flex-shrink: 0;
+  }
+  .dilution-content { padding: 16px 20px; }
+  .dilution-step {
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 13px; line-height: 1.8; color: #b0c4de;
+  }
+  .dilution-step:last-child { border-bottom: none; }
+  .dilution-step .num {
+    display: inline-block;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: rgba(255,193,7,0.12);
+    color: var(--warn);
+    text-align: center; line-height: 24px;
+    font-size: 11px; font-weight: 700;
+    margin-right: 8px;
+  }
+  .dilution-formula {
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(255,255,255,0.04);
+    padding: 4px 10px; border-radius: 6px;
+    font-size: 12px; color: #e0d080;
+    display: inline-block; margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script>
+const STEPS = [
+  {
+    id: 1, title: "용질 질량 계산", short: "질량 계산",
+    instruction: "0.5M NaCl 수용액 100mL를 만들기 위해 필요한 NaCl의 질량을 계산하세요.",
+    hint: "몰농도(M) = 용질의 몰수(mol) / 용액의 부피(L)\n0.5 mol/L × 0.1 L = 0.05 mol\n0.05 mol × 58 g/mol = 2.9 g",
+    quiz: {
+      q: "0.5M NaCl 수용액 100mL를 만들려면 NaCl이 몇 g 필요할까요?",
+      opts: ["1.45g","2.9g","5.8g","29g"],
+      ans: 1,
+      exp: "0.5 mol/L × 0.1 L = 0.05 mol → 0.05 mol × 58 g/mol = 2.9 g"
+    }
+  },
+  {
+    id: 2, title: "용질 칭량", short: "칭량",
+    instruction: "전자저울로 NaCl 2.9g을 정확히 칭량하여 비커에 담습니다.",
+    hint: "약포지 위에 NaCl을 올려 정확히 2.9g을 측정합니다.\n전자저울의 영점(tare)을 먼저 맞춘 후 칭량하세요."
+  },
+  {
+    id: 3, title: "용해", short: "용해",
+    instruction: "비커에 증류수를 소량 넣고 유리 막대로 저어 NaCl을 완전히 용해시킵니다.",
+    hint: "용질이 완전히 녹을 때까지 유리 막대로 천천히 저어줍니다.\n증류수는 부피 플라스크 용량의 절반 정도만 사용합니다."
+  },
+  {
+    id: 4, title: "부피 플라스크로 이동", short: "이동",
+    instruction: "용액을 깔대기를 이용해 부피 플라스크에 옮기고,\n비커와 깔대기를 증류수로 2~3회 헹구어 부피 플라스크에 붓습니다.",
+    hint: "비커 내벽에 묻은 용질을 모두 옮기기 위해\n증류수로 2~3회 헹구어 부피 플라스크에 넣어야 합니다.\n이 과정을 생략하면 용질 손실로 농도가 낮아집니다.",
+    quiz: {
+      q: "비커를 증류수로 여러 번 헹구어 넣는 이유는?",
+      opts: ["용액의 온도를 맞추기 위해","비커 내벽의 용질을 모두 옮기기 위해","증류수를 충분히 넣기 위해","용액을 희석하기 위해"],
+      ans: 1,
+      exp: "비커 내벽에 묻은 용질까지 모두 부피 플라스크로 옮겨야 정확한 농도의 표준 용액을 만들 수 있습니다."
+    }
+  },
+  {
+    id: 5, title: "표시선 맞추기", short: "표시선",
+    instruction: "씻기병(스포이트)으로 증류수를 조금씩 넣어\n메니스커스의 밑면이 100mL 표시선에 정확히 오도록 맞춥니다.",
+    hint: "표시선 가까이에서는 씻기병으로 한 방울씩 넣습니다.\n눈의 높이를 표시선과 같은 높이에 맞추고 (수평 시선),\n메니스커스(오목한 면)의 가장 아래 부분이 표시선에 닿도록 합니다.",
+    quiz: {
+      q: "부피 플라스크의 눈금을 읽을 때 눈의 위치는?",
+      opts: ["표시선보다 위에서 내려다본다","표시선과 같은 높이에서 수평으로 본다","표시선보다 아래에서 올려다본다","어느 위치에서든 상관없다"],
+      ans: 1,
+      exp: "눈의 높이를 표시선과 같은 높이에 맞추고 수평으로 바라보아야 시차(parallax error)를 줄여 정확하게 읽을 수 있습니다."
+    }
+  },
+  {
+    id: 6, title: "마개 닫고 혼합", short: "혼합",
+    instruction: "부피 플라스크의 마개를 닫고 위아래로 뒤집어 잘 섞어줍니다.\n0.5M NaCl 표준 용액 100mL 완성!",
+    hint: "용액이 균일하게 섞이도록 여러 번 뒤집어 줍니다."
+  }
+];
+
+// SVG builders
+function svgBeaker(opts = {}) {
+  const { water = 0, color = "rgba(130,200,240,0.45)", stirrer = false, dissolving = false, particles = false, particleOpacity = 0.8 } = opts;
+  let s = '';
+  // beaker body
+  s += `<path d="M30,20 L20,130 Q20,140 30,140 L100,140 Q110,140 110,130 L100,20" fill="none" stroke="#667" stroke-width="2.5"/>`;
+  // spout marks
+  s += `<line x1="28" y1="20" x2="22" y2="20" stroke="#667" stroke-width="2"/>`;
+  s += `<line x1="102" y1="20" x2="108" y2="20" stroke="#667" stroke-width="2"/>`;
+  if (water > 0) {
+    const wy = 140 - water * 110;
+    s += `<path d="M24,${wy} Q65,${wy - 3} 106,${wy} L106,136 Q65,140 24,136 Z" fill="${color}" opacity="0.55">`;
+    if (dissolving) s += `<animate attributeName="opacity" values="0.35;0.65;0.35" dur="1.5s" repeatCount="indefinite"/>`;
+    s += `</path>`;
+  }
+  if (particles) {
+    for (let i = 0; i < 6; i++) {
+      s += `<rect x="${42 + i * 11}" y="${132}" width="5" height="3.5" rx="1" fill="white" stroke="#ccc" stroke-width="0.5" opacity="${particleOpacity}"/>`;
+    }
+  }
+  if (stirrer) {
+    s += `<line x1="65" y1="8" x2="65" y2="125" stroke="#aaa" stroke-width="3" stroke-linecap="round">`;
+    s += `<animateTransform attributeName="transform" type="rotate" values="-6,65,70;6,65,70;-6,65,70" dur="0.7s" repeatCount="indefinite"/>`;
+    s += `</line>`;
+  }
+  return s;
+}
+
+function svgFlask(opts = {}) {
+  const { water = 0, color = "rgba(130,200,240,0.45)", mark = true, cap = false, rinsing = false } = opts;
+  let s = '';
+  // flask outline
+  s += `<path d="M42,0 L42,50 Q42,55 30,70 L15,120 Q10,142 20,152 L20,157 Q20,162 25,162 L75,162 Q80,162 80,157 L80,152 Q90,142 85,120 L70,70 Q58,55 58,50 L58,0" fill="none" stroke="#667" stroke-width="2"/>`;
+  // mark
+  if (mark) {
+    s += `<line x1="38" y1="52" x2="62" y2="52" stroke="#d22" stroke-width="1.5"/>`;
+    s += `<text x="65" y="56" font-size="8" fill="#d22" font-family="'JetBrains Mono',monospace">100mL</text>`;
+  }
+  // body water
+  const bw = Math.min(water, 0.7);
+  if (bw > 0) {
+    const m = 1 - bw;
+    s += `<path d="M${22 + m * 13},${157 - bw * 95} Q50,${155 - bw * 95} ${78 - m * 13},${157 - bw * 95} L79,154 Q50,160 21,154 Z" fill="${color}" opacity="0.5">`;
+    if (rinsing) s += `<animate attributeName="opacity" values="0.3;0.6;0.3" dur="0.8s" repeatCount="3"/>`;
+    s += `</path>`;
+  }
+  // neck water
+  const nw = Math.max(0, (water - 0.7) / 0.3);
+  if (nw > 0) {
+    s += `<rect x="43" y="${52 - nw * 3}" width="14" height="${nw * 3 + 14}" fill="${color}" opacity="0.5" rx="1"/>`;
+  }
+  // meniscus
+  if (water >= 0.95) {
+    s += `<path d="M44,53 Q50,55.5 56,53" fill="none" stroke="${color}" stroke-width="2.5" opacity="0.85"/>`;
+  }
+  // cap
+  if (cap) {
+    s += `<rect x="38" y="-6" width="24" height="9" rx="4" fill="#4caf50" stroke="#388e3c" stroke-width="1"/>`;
+  }
+  return s;
+}
+
+function svgScale(val) {
+  let s = '';
+  s += `<rect x="0" y="0" width="130" height="22" rx="4" fill="#e0e0e0" stroke="#aaa" stroke-width="1.5"/>`;
+  s += `<rect x="5" y="24" width="120" height="9" rx="2" fill="#ccc"/>`;
+  s += `<rect x="12" y="3" width="106" height="16" rx="3" fill="#111a11"/>`;
+  s += `<text x="112" y="16" text-anchor="end" font-size="12" font-family="'JetBrains Mono',monospace" fill="#0f0">${val} g</text>`;
+  return s;
+}
+
+function svgWashBottle(pouring) {
+  let s = `<ellipse cx="22" cy="38" rx="16" ry="22" fill="rgba(180,220,250,0.35)" stroke="#888" stroke-width="1.5"/>`;
+  s += `<path d="M22,16 Q28,8 38,-2" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round"/>`;
+  if (pouring) {
+    s += `<circle cx="39" cy="0" r="1.8" fill="rgba(100,180,255,0.7)"><animate attributeName="cy" values="0;40" dur="0.55s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0" dur="0.55s" repeatCount="indefinite"/></circle>`;
+    s += `<circle cx="40" cy="8" r="1.2" fill="rgba(100,180,255,0.5)"><animate attributeName="cy" values="8;45" dur="0.65s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0" dur="0.65s" repeatCount="indefinite"/></circle>`;
+  }
+  return s;
+}
+
+function svgEyeLine(ex, ey, tx, ty) {
+  let s = '';
+  s += `<ellipse cx="${ex}" cy="${ey}" rx="13" ry="9" fill="white" stroke="#556" stroke-width="1.5"/>`;
+  s += `<circle cx="${ex + 3}" cy="${ey}" r="4.5" fill="#654"/>`;
+  s += `<circle cx="${ex + 4.5}" cy="${ey - 1}" r="2" fill="#222"/>`;
+  s += `<circle cx="${ex + 5.5}" cy="${ey - 2}" r="0.8" fill="white"/>`;
+  s += `<line x1="${ex + 13}" y1="${ey}" x2="${tx}" y2="${ty}" stroke="#d22" stroke-width="1.2" stroke-dasharray="5,3"/>`;
+  return s;
+}
+
+function svgFunnel() {
+  return `<path d="M0,0 L22,28 L22,48 L26,48 L26,28 L48,0 Z" fill="rgba(215,215,215,0.4)" stroke="#999" stroke-width="1.5"/>`;
+}
+
+// Animation SVGs per step
+function getStepSVG(stepId, phase) {
+  const W = 360, H = 230;
+  let inner = '';
+
+  switch(stepId) {
+    case 1: {
+      inner += `<defs><linearGradient id="cb" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f0f4ff"/><stop offset="100%" stop-color="#e4ecfd"/></linearGradient></defs>`;
+      inner += `<rect width="${W}" height="${H}" fill="url(#cb)" rx="12"/>`;
+      inner += `<text x="${W/2}" y="32" text-anchor="middle" font-size="14" font-weight="bold" fill="#2c3e7a">몰농도 계산</text>`;
+      inner += `<rect x="40" y="48" width="280" height="38" rx="7" fill="white" stroke="#b0c4e8" stroke-width="1"/>`;
+      inner += `<text x="${W/2}" y="73" text-anchor="middle" font-size="13" fill="#3a5090" font-family="'JetBrains Mono',monospace">M = mol / L</text>`;
+
+      const o1 = phase >= 1 ? 1 : 0.18;
+      inner += `<g opacity="${o1}"><rect x="40" y="98" width="280" height="34" rx="7" fill="#eef3ff" stroke="#c0d4f0" stroke-width="1"/><text x="${W/2}" y="120" text-anchor="middle" font-size="12" fill="#3a5a9a">0.5 mol/L × 0.1 L = <tspan font-weight="bold">0.05 mol</tspan></text></g>`;
+
+      const o2 = phase >= 2 ? 1 : 0.18;
+      inner += `<g opacity="${o2}"><rect x="40" y="142" width="280" height="34" rx="7" fill="#eef3ff" stroke="#c0d4f0" stroke-width="1"/><text x="${W/2}" y="164" text-anchor="middle" font-size="12" fill="#3a5a9a">0.05 mol × 58 g/mol = <tspan font-weight="bold">2.9 g</tspan></text></g>`;
+
+      const o3 = phase >= 3 ? 1 : 0.18;
+      inner += `<g opacity="${o3}"><rect x="90" y="186" width="180" height="36" rx="9" fill="#3a6fd8"/><text x="${W/2}" y="210" text-anchor="middle" font-size="15" font-weight="bold" fill="white">NaCl 2.9 g 필요</text></g>`;
+      break;
+    }
+    case 2: {
+      inner += `<rect width="${W}" height="${H}" fill="#f8f9fb" rx="12"/>`;
+      inner += `<text x="${W/2}" y="26" text-anchor="middle" font-size="12" fill="#556">전자저울로 NaCl 2.9g 칭량</text>`;
+      const scaleVal = phase >= 2 ? "2.90" : phase >= 1 ? "1.45" : "0.00";
+      inner += `<g transform="translate(115,185)">${svgScale(scaleVal)}</g>`;
+      inner += `<g transform="translate(120,38) scale(0.95)">${svgBeaker({ water: 0, particles: phase >= 1, particleOpacity: phase >= 2 ? 1 : 0.5 })}</g>`;
+      if (phase >= 1) {
+        for (let i = 0; i < 8; i++) {
+          const fx = 148 + (i % 4) * 13, fy = 130 + Math.floor(i / 4) * 9;
+          inner += `<rect x="${fx}" y="${fy}" width="6" height="4" rx="1" fill="white" stroke="#ccc" stroke-width="0.5" opacity="${phase >= 2 ? 1 : 0.5}"><animate attributeName="y" from="${85}" to="${fy}" dur="0.6s" fill="freeze"/></rect>`;
+        }
+      }
+      break;
+    }
+    case 3: {
+      inner += `<rect width="${W}" height="${H}" fill="#f8f9fb" rx="12"/>`;
+      inner += `<text x="${W/2}" y="24" text-anchor="middle" font-size="12" fill="#556">증류수를 넣고 유리 막대로 저어 용해</text>`;
+      const w = phase >= 1 ? 0.6 : 0.2;
+      const c = phase >= 2 ? "rgba(130,200,240,0.45)" : "rgba(180,210,235,0.3)";
+      inner += `<g transform="translate(115,32)">${svgBeaker({ water: w, color: c, stirrer: phase >= 1, dissolving: phase === 1, particles: phase < 2, particleOpacity: phase >= 1 ? 0.25 : 0.8 })}</g>`;
+      if (phase >= 2) inner += `<text x="${W/2}" y="210" text-anchor="middle" font-size="12" fill="#27a" font-weight="bold">✓ 완전히 용해됨</text>`;
+      break;
+    }
+    case 4: {
+      const W2 = 380;
+      inner += `<rect width="${W2}" height="${H+10}" fill="#f8f9fb" rx="12"/>`;
+      inner += `<text x="${W2/2}" y="22" text-anchor="middle" font-size="12" fill="#556">깔대기로 부피 플라스크에 옮기고 비커를 헹굼</text>`;
+      const bw = phase >= 2 ? 0.08 : phase >= 1 ? 0.3 : 0.6;
+      inner += `<g transform="translate(22,42) scale(0.72)">${svgBeaker({ water: bw, color: "rgba(130,200,240,0.45)" })}</g>`;
+      // arrow
+      inner += `<defs><marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#889"/></marker></defs>`;
+      inner += `<line x1="118" y1="100" x2="155" y2="78" stroke="#889" stroke-width="1.5" marker-end="url(#ah)"/>`;
+      // funnel
+      inner += `<g transform="translate(178,30)">${svgFunnel()}</g>`;
+      // flask
+      const fw = phase >= 2 ? 0.5 : phase >= 1 ? 0.25 : 0;
+      inner += `<g transform="translate(175,48)">${svgFlask({ water: fw, rinsing: phase === 2 })}</g>`;
+      if (phase >= 2) {
+        inner += `<text x="68" y="195" font-size="10" fill="#2a8a9a" font-weight="500">헹굼 ×3</text>`;
+        inner += `<path d="M60,175 Q42,162 60,150" fill="none" stroke="#5ac" stroke-width="1.8"><animate attributeName="opacity" values="0.3;1;0.3" dur="0.9s" repeatCount="indefinite"/></path>`;
+      }
+      break;
+    }
+    case 5: {
+      inner += `<rect width="${W}" height="${H+20}" fill="#f8f9fb" rx="12"/>`;
+      inner += `<text x="${W/2}" y="20" text-anchor="middle" font-size="12" fill="#556">씻기병으로 표시선까지 증류수 채우기</text>`;
+      const fw = phase >= 2 ? 0.98 : phase >= 1 ? 0.8 : 0.55;
+      inner += `<g transform="translate(120,28) scale(1.2)">${svgFlask({ water: fw })}</g>`;
+      inner += `<g transform="translate(272,42)">${svgWashBottle(phase === 1)}</g>`;
+      if (phase >= 2) {
+        inner += `<g transform="translate(0,0)">${svgEyeLine(58, 92, 148, 92)}</g>`;
+        inner += `<text x="53" y="114" font-size="9.5" fill="#d22" text-anchor="middle" font-weight="500">수평 시선</text>`;
+      }
+      break;
+    }
+    case 6: {
+      inner += `<rect width="${W}" height="${H+20}" fill="#f8f9fb" rx="12"/>`;
+      inner += `<text x="${W/2}" y="22" text-anchor="middle" font-size="12" fill="#556">마개를 닫고 뒤집어 혼합</text>`;
+      if (phase >= 1 && phase < 2) {
+        inner += `<g><animateTransform attributeName="transform" type="rotate" values="0,${180},${130};180,${180},${130};360,${180},${130}" dur="2.2s" repeatCount="indefinite"/>`;
+        inner += `<g transform="translate(130,32) scale(1.2)">${svgFlask({ water: 0.98, cap: true })}</g>`;
+        inner += `</g>`;
+      } else {
+        inner += `<g transform="translate(130,32) scale(1.2)">${svgFlask({ water: 0.98, cap: true })}</g>`;
+      }
+      if (phase >= 2) {
+        inner += `<rect x="65" y="200" width="230" height="38" rx="10" fill="#27ae60" opacity="0.92"/>`;
+        inner += `<text x="${W/2}" y="225" text-anchor="middle" font-size="15" font-weight="bold" fill="white">🎉 0.5M NaCl 표준 용액 완성!</text>`;
+      }
+      break;
+    }
+  }
+
+  const vw = stepId === 4 ? 380 : W;
+  const vh = (stepId === 5 || stepId === 6) ? H + 20 : stepId === 4 ? H + 10 : H;
+  return `<svg viewBox="0 0 ${vw} ${vh}" width="100%" style="max-height:270px">${inner}</svg>`;
+}
+
+// State
+let state = {
+  step: 0,
+  phase: 0,
+  hint: false,
+  quizAns: null,
+  quizDone: false,
+  score: 0,
+  totalQ: 0,
+  timers: []
+};
+
+function clearTimers() {
+  state.timers.forEach(t => clearTimeout(t));
+  state.timers = [];
+}
+
+function goStep(i) {
+  clearTimers();
+  state.step = i;
+  state.phase = 0;
+  state.hint = false;
+  state.quizAns = null;
+  state.quizDone = false;
+  render();
+  state.timers.push(setTimeout(() => { state.phase = 1; render(); }, 500));
+  state.timers.push(setTimeout(() => { state.phase = 2; render(); }, 1600));
+  state.timers.push(setTimeout(() => { state.phase = 3; render(); }, 2600));
+}
+
+function render() {
+  const s = STEPS[state.step];
+  const app = document.getElementById('app');
+
+  // Progress
+  let prog = '<div class="progress">';
+  STEPS.forEach((st, i) => {
+    const cls = i === state.step ? 'active' : i < state.step ? 'done' : '';
+    const icon = i < state.step ? '✓' : (i + 1);
+    prog += `<div class="progress-step ${cls}" onclick="goStep(${i})"><span class="progress-num">${icon}</span>${st.short}</div>`;
+  });
+  prog += '</div>';
+
+  // Main card
+  const svg = getStepSVG(s.id, state.phase);
+  let card = `<div class="main-card" key="${state.step}">`;
+  card += `<div class="step-bar"><div class="step-num">${s.id}</div><div class="step-title">${s.title}</div></div>`;
+  card += `<div class="anim-area">${svg}</div>`;
+  card += `<div class="instruction">${s.instruction}</div>`;
+  card += `</div>`;
+
+  // Hint
+  const hOpen = state.hint ? 'open' : '';
+  let hint = `<button class="hint-btn ${hOpen}" onclick="toggleHint()">💡 ${state.hint ? '힌트 숨기기' : '유의사항 보기'}`;
+  if (state.hint) hint += `<div class="hint-content">${s.hint}</div>`;
+  hint += `</button>`;
+
+  // Quiz
+  let quiz = '';
+  if (s.quiz) {
+    quiz = '<div class="quiz-card">';
+    quiz += '<div class="quiz-label">📝 확인 문제</div>';
+    quiz += `<div class="quiz-q">${s.quiz.q}</div>`;
+    quiz += '<div class="quiz-opts">';
+    const labels = ['①','②','③','④'];
+    s.quiz.opts.forEach((o, i) => {
+      let cls = '';
+      if (state.quizDone) {
+        cls = 'locked ';
+        if (i === s.quiz.ans) cls += 'correct';
+        else if (i === state.quizAns) cls += 'wrong';
+      } else if (state.quizAns === i) cls = 'selected';
+      quiz += `<button class="quiz-opt ${cls}" onclick="pickQuiz(${i})">${labels[i]} ${o}</button>`;
+    });
+    quiz += '</div>';
+    if (!state.quizDone) {
+      const dis = state.quizAns === null ? 'disabled' : '';
+      quiz += `<button class="quiz-submit" ${dis} onclick="submitQuiz()">정답 확인</button>`;
+    } else {
+      const ok = state.quizAns === s.quiz.ans;
+      quiz += `<div class="quiz-result ${ok ? 'pass' : 'fail'}">${ok ? '✅ 정답!' : '❌ 오답'} ${s.quiz.exp}</div>`;
+    }
+    quiz += '</div>';
+  }
+
+  // Nav
+  const prevDis = state.step === 0 ? 'disabled' : '';
+  const isLast = state.step === STEPS.length - 1;
+  const nextCls = isLast ? 'nav-btn nav-next finished' : 'nav-btn nav-next';
+  const nextDis = isLast ? 'disabled' : '';
+  let nav = `<div class="nav">`;
+  nav += `<button class="nav-btn nav-prev" ${prevDis} onclick="prevStep()">← 이전</button>`;
+  nav += `<button class="${nextCls}" ${nextDis} onclick="nextStep()">${isLast ? '🎉 완료!' : '다음 →'}</button>`;
+  nav += `</div>`;
+
+  // Dilution section (show after step 6)
+  let dilution = '';
+  if (state.step === STEPS.length - 1 && state.phase >= 2) {
+    dilution = `<div class="dilution-card">
+      <div class="dilution-bar">
+        <div class="dilution-icon">+</div>
+        <div class="step-title">보너스: 희석법 (0.01M 포도당 500mL)</div>
+      </div>
+      <div class="dilution-content">
+        <div class="dilution-step"><span class="num">1</span>필요한 포도당 몰수 계산<br><span class="dilution-formula">0.01 mol/L × 0.5 L = 0.005 mol</span></div>
+        <div class="dilution-step"><span class="num">2</span>0.1M 포도당 수용액의 필요 부피 계산<br><span class="dilution-formula">0.005 mol ÷ 0.1 mol/L = 0.05 L = 50 mL</span></div>
+        <div class="dilution-step"><span class="num">3</span>0.1M 포도당 수용액 50mL를 취하여 500mL 부피 플라스크에 넣는다</div>
+        <div class="dilution-step"><span class="num">4</span>표시선까지 증류수를 넣고 잘 흔들어 준다</div>
+      </div>
+    </div>`;
+  }
+
+  // Score
+  let sc = '';
+  if (state.totalQ > 0) {
+    sc = `<div class="score">퀴즈 점수: <b>${state.score}</b> / ${state.totalQ}</div>`;
+  }
+
+  app.innerHTML = `
+    <div class="header">
+      <div class="header-label">Chemistry Lab Simulation</div>
+      <h1>표준 용액 만들기</h1>
+      <div class="header-sub">0.5M NaCl 수용액 100mL 제조</div>
+    </div>
+    ${prog}${card}${hint}${quiz}${nav}${dilution}${sc}
+  `;
+}
+
+// Global handlers
+window.goStep = goStep;
+window.toggleHint = () => { state.hint = !state.hint; render(); };
+window.pickQuiz = (i) => { if (!state.quizDone) { state.quizAns = i; render(); } };
+window.submitQuiz = () => {
+  if (state.quizAns === null || state.quizDone) return;
+  state.quizDone = true;
+  state.totalQ++;
+  if (state.quizAns === STEPS[state.step].quiz.ans) state.score++;
+  render();
+};
+window.nextStep = () => { if (state.step < STEPS.length - 1) goStep(state.step + 1); };
+window.prevStep = () => { if (state.step > 0) goStep(state.step - 1); };
+
+// Init
+goStep(0);
+</script>
+</body>
+</html>
